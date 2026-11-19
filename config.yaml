@@ -1,9 +1,10 @@
 # yt-auto channel config
 channel:
   niche: >
-    Tech explainers: how computers, chips, networks, programming languages,
-    and everyday technology actually work under the hood. Accurate,
-    engineering-minded, no hype. Audience: curious students and developers.
+    Embedded systems and operating-system concepts made dead simple: interrupts,
+    watchdogs, GPIO, PWM, timers, DMA, bootloaders, RTOS tasks, scheduling,
+    context switches, stack vs heap, virtual memory, deadlocks, race conditions,
+    system calls, drivers. Audience: curious teens, students and new developers.
   voice_tone: "clear, confident, slightly playful; like a smart friend explaining at a whiteboard"
 
 llm:
@@ -18,17 +19,27 @@ tts:
 duo:
   asker: Hiro                # asks the question (hook), reacts, pushes back
   explainer: Baymax          # answers: literal, deadpan, gentle; explains simply
+  voice_backend: clone       # clone = Chatterbox zero-shot from assets/voices/*_ref.wav | kokoro
+  tempo: 1.25                # speed-up applied to every line (pitch preserved); video timing follows
   characters:
     Hiro:
       image: assets/characters/hiro.png
       side: left
-      voice: am_puck
+      height: 600
+      ref: assets/voices/hiro_ref.wav
+      exaggeration: 0.6
+      cfg_weight: 0.5
+      voice: am_puck         # kokoro fallback
       speed: 1.18
-      pitch: 1.10            # semitone-ish ratio via rubberband; >1 = younger
+      pitch: 1.10
       personality: "14-year-old robotics genius; impatient, sarcastic, curious, talks fast"
     Baymax:
       image: assets/characters/baymax.png
       side: right
+      height: 470
+      ref: assets/voices/baymax_ref.wav
+      exaggeration: 0.3
+      cfg_weight: 0.4
       voice: am_echo
       speed: 1.02
       pitch: 0.97
