@@ -14,7 +14,7 @@ import numpy as np
 import soundfile as sf
 
 from . import captions, cards, script, tts
-from .assemble import _encoder_args
+from .assemble import AUDIO_ARGS, _encoder_args
 
 SR = tts.SR
 GAP = 0.08          # silence between lines (before tempo): snappy pacing
@@ -283,7 +283,7 @@ def composite(timing, cfg, job: Path, ass: Path):
 
     cmd = (["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"] + inputs +
            ["-filter_complex", ";".join(filters), "-map", "[vout]", "-map", "[aout]", "-t", f"{total:.2f}"] +
-           _encoder_args(cfg) + ["-c:a", "aac", "-ac", "2", "-b:a", "192k", "-movflags", "+faststart",
+           _encoder_args(cfg) + AUDIO_ARGS + ["-movflags", "+faststart",
                                  str(job / "video.mp4")])
     (job / "ffmpeg_cmd.txt").write_text(" ".join(cmd))
     subprocess.run(cmd, check=True)

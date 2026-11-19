@@ -15,13 +15,42 @@ def _reveal_durations(n: int, d: float) -> list[float]:
     return [step] * (n - 1) + [d - step * (n - 1)]
 
 
-def _encoder_args(cfg):
-    enc = cfg["render"].get("encoder", "h264_nvenc")
+# YouTube recommended upload settings (support.google.com/youtube/answer/1722171):
+# H.264 High, 2 B-frames, closed GOP of half the frame rate, 4:2:0, BT.709, >= 8 Mbps @1080p30,
+# AAC-LC 48 kHz stereo 384 kbps, moov atom at the front (+faststart).
+AUDIO_ARGS = ["-c:a", "aac", "-ac", "2", "-ar", "48000", "-b:a", "384k"]
+COLOR_ARGS = ["-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709",
+              "-color_trc", "bt709", "-color_range", "tv",
+              # encoders don't all write the VUI colour tags; stamp BT.709 into the H.264 bitstream
+              "-bsf:v", "h264_metadata=colour_primaries=1:transfer_characteristics=1:"
+                        "matrix_coefficients=1:video_full_range_flag=0"]
+
+
+def _works(enc: str) -> bool:
     probe = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
                             "color=s=256x256:d=0.1", "-c:v", enc, "-f", "null", "-"], capture_output=True)
-    if enc == "h264_nvenc" and probe.returncode == 0:
-        return ["-c:v", "h264_nvenc", "-preset", "p6", "-rc", "vbr", "-cq", "20", "-b:v", "0"]
-    return ["-c:v", "libopenh264", "-b:v", "10M"]
+    return probe.returncode == 0
+
+
+def _encoder_args(cfg):
+    """Best available H.264 encoder: NVENC (laptop GPU) -> libx264 (CI/Ubuntu) -> libopenh264 (Fedora)."""
+    gop = str(max(1, round(cfg["render"]["fps"] / 2)))
+    pref = cfg["render"].get("encoder", "h264_nvenc")
+    for enc in dict.fromkeys([pref, "h264_nvenc", "libx264", "libopenh264"]):
+        if not _works(enc):
+            continue
+        if enc == "h264_nvenc":
+            v = ["-c:v", "h264_nvenc", "-preset", "p6", "-profile:v", "high", "-rc", "vbr", "-cq", "19",
+                 "-b:v", "10M", "-maxrate", "16M", "-bufsize", "20M", "-bf", "2", "-g", gop,
+                 "-strict_gop", "1"]
+        elif enc == "libx264":
+            v = ["-c:v", "libx264", "-preset", "slow", "-profile:v", "high", "-crf", "18",
+                 "-maxrate", "16M", "-bufsize", "20M", "-bf", "2", "-g", gop, "-keyint_min", gop,
+                 "-sc_threshold", "0", "-flags", "+cgop"]
+        else:
+            v = ["-c:v", "libopenh264", "-profile:v", "high", "-b:v", "12M", "-g", gop]
+        return v + COLOR_ARGS
+    raise RuntimeError("no working H.264 encoder found in ffmpeg")
 
 
 def assemble(scene_frames: list[list[Path]], durs: list[float], narration: Path, ass: Path | None,
@@ -67,7 +96,7 @@ def assemble(scene_frames: list[list[Path]], durs: list[float], narration: Path,
 
     cmd = (["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-stats"] + inputs +
            ["-filter_complex", ";".join(filters), "-map", vchain, "-map", "[aout]"] +
-           _encoder_args(cfg) + ["-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-b:a", "192k",
+           _encoder_args(cfg) + AUDIO_ARGS + [
                                  "-movflags", "+faststart", "-shortest", str(out)])
     (out.parent / "ffmpeg_cmd.txt").write_text(" ".join(cmd))
     subprocess.run(cmd, check=True)
