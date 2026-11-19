@@ -292,8 +292,9 @@ def composite(timing, cfg, job: Path, ass: Path):
 def build_audio_and_video(sc: dict, cfg: dict, job: Path):
     timing = voice_lines(sc, cfg, job)
     (job / "timing.json").write_text(json.dumps(timing, indent=1, ensure_ascii=False))
-    full = " ".join(ln["text"] for ln in sc["lines"])
-    words = captions.word_timings(job / "narration.wav", full)
+    words = captions.line_word_timings(
+        job / "narration.wav",
+        [{"text": ln["text"], "start": t["start"], "end": t["end"]} for ln, t in zip(sc["lines"], timing)])
     captions.write_srt(words, job / "captions.srt")
     W, H = cfg["formats"]["short"]["size"]
     captions.write_ass(words, (W, H), job / "captions.ass", fs=100, margin_v=int(H * 0.37))

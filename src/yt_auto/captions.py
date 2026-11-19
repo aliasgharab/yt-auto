@@ -20,6 +20,63 @@ def word_timings(wav: Path, script_text: str) -> list[tuple[float, float, str]]:
     return [(w.start, w.end, w.word.strip()) for s in segs for w in s.words if w.word.strip()]
 
 
+def _load_16k(wav: Path):
+    import numpy as np
+    import soundfile as sf
+    audio, sr = sf.read(wav, dtype="float32")
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    n16 = int(len(audio) * 16000 / sr)
+    return np.interp(np.linspace(0, len(audio) - 1, n16), np.arange(len(audio)), audio).astype(np.float32)
+
+
+def line_word_timings(wav: Path, lines: list[dict]) -> list[tuple[float, float, str]]:
+    """Per-line alignment: each line's start/end is already known exactly (we synthesise lines one by one),
+    so whisper only has to place words inside a short window. The words shown are always the SCRIPT's
+    words, so a whisper miss can never drop or garble a caption -- worst case they're spread evenly.
+    lines: [{"text", "start", "end"}] in seconds on the narration.wav timeline."""
+    global _model
+    if _model is None:
+        from faster_whisper import WhisperModel
+        _model = WhisperModel("small.en", device="cpu", compute_type="int8")
+    audio = _load_16k(wav)
+    out = []
+    for ln in lines:
+        words = ln["text"].split()
+        if not words:
+            continue
+        a, b = ln["start"], ln["end"]
+        seg = audio[int(a * 16000): int(b * 16000)]
+        ww = []
+        if len(seg) > 1600:
+            segs, _ = _model.transcribe(seg, word_timestamps=True, beam_size=5, language="en",
+                                        initial_prompt=ln["text"], vad_filter=False,
+                                        condition_on_previous_text=False)
+            ww = [(w.start, w.end) for sg in segs for w in sg.words if w.word.strip()]
+        if len(ww) == len(words):
+            times = [(a + s0, a + e0) for s0, e0 in ww]
+        else:
+            # spread script words over the detected speech span, weighted by length
+            s0 = a + (ww[0][0] if ww else 0.0)
+            e0 = a + (ww[-1][1] if ww else b - a)
+            if e0 - s0 < 0.2 * len(words):
+                s0, e0 = a, b
+            wts = [len(w) + 2 for w in words]
+            tot, t = sum(wts), s0
+            times = []
+            for w in wts:
+                d = (e0 - s0) * w / tot
+                times.append((t, t + d))
+                t += d
+        prev = a
+        for (s1, e1), w in zip(times, words):
+            s1 = min(max(s1, prev, a), b)
+            e1 = min(max(e1, s1 + 0.05), b)
+            out.append((s1, e1, w))
+            prev = s1
+    return out
+
+
 def _chunks(words, max_words=3, max_chars=16):
     cur = []
     for w in words:
