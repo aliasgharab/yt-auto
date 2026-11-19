@@ -67,7 +67,7 @@ def assemble(scene_frames: list[list[Path]], durs: list[float], narration: Path,
 
     cmd = (["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-stats"] + inputs +
            ["-filter_complex", ";".join(filters), "-map", vchain, "-map", "[aout]"] +
-           _encoder_args(cfg) + ["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+           _encoder_args(cfg) + ["-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", "-b:a", "192k",
                                  "-movflags", "+faststart", "-shortest", str(out)])
     (out.parent / "ffmpeg_cmd.txt").write_text(" ".join(cmd))
     subprocess.run(cmd, check=True)
