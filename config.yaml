@@ -19,7 +19,9 @@ tts:
 duo:
   asker: Hiro                # asks the question (hook), reacts, pushes back
   explainer: Baymax          # answers: literal, deadpan, gentle; explains simply
-  voice_backend: clone       # clone = Chatterbox zero-shot from assets/voices/*_ref.wav | kokoro
+  voice_backend: clone       # clone = Chatterbox zero-shot from assets/voices/*_ref.wav (slow)
+                             # rvc = Kokoro TTS -> Applio RVC model per character (fast; falls back to
+                             #       clone if an rvc_model file is missing) | kokoro = plain Kokoro
   tempo: 1.25                # speed-up applied to every line (pitch preserved); video timing follows
   characters:
     Hiro:
@@ -29,7 +31,10 @@ duo:
       ref: assets/voices/hiro_ref.wav
       exaggeration: 0.6
       cfg_weight: 0.5
-      voice: am_puck         # kokoro fallback
+      voice: am_puck         # kokoro voice (kokoro backend, and the rvc backend's source speech)
+      rvc_model: assets/voices/rvc/hiro.pth     # tools/rvc/train.sh output
+      rvc_index: assets/voices/rvc/hiro.index
+      rvc_pitch: 0           # semitones applied by RVC to the Kokoro voice
       speed: 1.18
       pitch: 1.10
       personality: "14-year-old robotics genius; impatient, sarcastic, curious, talks fast"
@@ -41,6 +46,9 @@ duo:
       exaggeration: 0.3
       cfg_weight: 0.4
       voice: am_echo
+      rvc_model: assets/voices/rvc/baymax.pth
+      rvc_index: assets/voices/rvc/baymax.index
+      rvc_pitch: 0
       speed: 1.02
       pitch: 0.97
       personality: "gentle, literal-minded healthcare robot; calm, deadpan, accidentally funny; explains things very simply"

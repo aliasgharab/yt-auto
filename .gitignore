@@ -7,3 +7,11 @@ assets/gameplay/
 assets/characters/raw/
 assets/characters/
 assets/voices/
+
+# voice tooling (RVC / Demucs): large installs, data and model weights
+tools/rvc/Applio/
+tools/rvc/logs/
+tools/demucs/.venv
+assets/voices/clean/
+*.pth
+*.index
