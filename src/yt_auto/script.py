@@ -59,11 +59,11 @@ VISUAL_GUIDE = """Visual types (pick the one that best SHOWS what the narration 
 """
 
 
-def _call_claude(prompt: str, cfg: dict) -> dict:
+def _call_claude(prompt: str, cfg: dict, schema: dict | None = None) -> dict:
     llm = cfg["llm"]
     if llm["backend"] == "claude-cli":
         cmd = ["claude", "-p", "--output-format", "json", "--model", llm["model"],
-               "--json-schema", json.dumps(SCRIPT_SCHEMA), "--tools", "",
+               "--json-schema", json.dumps(schema or SCRIPT_SCHEMA), "--tools", "",
                "--no-session-persistence"]
         res = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=900)
         if res.returncode != 0:

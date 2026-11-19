@@ -14,11 +14,31 @@ tts:
   voice: am_michael          # try: am_michael, am_adam, bm_george, af_heart, bf_emma
   speed: 1.08
 
+# Shorts = two-character dialogue over gameplay (assets/gameplay/*.mp4)
+duo:
+  asker: Hiro                # asks the question (hook), reacts, pushes back
+  explainer: Baymax          # answers: literal, deadpan, gentle; explains simply
+  characters:
+    Hiro:
+      image: assets/characters/hiro.png
+      side: left
+      voice: am_puck
+      speed: 1.18
+      pitch: 1.10            # semitone-ish ratio via rubberband; >1 = younger
+      personality: "14-year-old robotics genius; impatient, sarcastic, curious, talks fast"
+    Baymax:
+      image: assets/characters/baymax.png
+      side: right
+      voice: am_echo
+      speed: 1.02
+      pitch: 0.97
+      personality: "gentle, literal-minded healthcare robot; calm, deadpan, accidentally funny; explains things very simply"
+
 formats:
   short:
     size: [1080, 1920]
-    target_words: [110, 150]   # ~40-55 s
-    scenes: [5, 8]
+    target_words: [60, 85]     # ~22-32 s; most 2026 analyses put top Shorts at ~25-35 s
+    lines: [6, 9]
   long:
     size: [1920, 1080]
     target_words: [900, 1300]  # ~6-9 min

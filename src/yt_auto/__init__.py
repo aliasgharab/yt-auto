@@ -87,6 +87,40 @@ def build(cfg: dict, fmt: str, topic: str | None = None, job: Path | None = None
     return job
 
 
+def build_short(cfg: dict, topic: str | None = None, job: Path | None = None) -> Path:
+    """Two-character dialogue Short over gameplay."""
+    from . import duo
+
+    out_root = cfg["_root"] / cfg["output_dir"]
+    out_root.mkdir(exist_ok=True)
+    if job and (job / "script.json").exists():
+        sc = json.loads((job / "script.json").read_text())
+    else:
+        t0 = _stage("dialogue script + edit pass (claude -p)")
+        past = [json.loads(p.read_text())["title"] for p in out_root.glob("*/script.json")]
+        sc = duo.write_script(cfg, topic, past)
+        _done(t0)
+        job = job or out_root / f"{date.today():%Y%m%d}-{_slug(sc['title'])}-short"
+        job.mkdir(parents=True, exist_ok=True)
+        (job / "script.json").write_text(json.dumps(sc, indent=2))
+        (job / "job.json").write_text(json.dumps({"format": "short", "style": "duo", "created": time.time()}))
+    words = sum(len(ln["text"].split()) for ln in sc["lines"])
+    print(f"  {sc['title']!r}: {len(sc['lines'])} lines, {words} words")
+    for ln in sc["lines"]:
+        print(f"    {ln['speaker']:>7}: {ln['text']}" + ("   [popup]" if ln.get("popup") else ""))
+
+    t0 = _stage("voices, captions, composite")
+    timing = duo.build_audio_and_video(sc, cfg, job)
+    _done(t0)
+    meta = {"title": sc["title"], "description": sc["description"], "tags": sc["tags"],
+            "format": "short", "duration_s": round(timing[-1]["end"] + 0.6, 1)}
+    if "#shorts" not in meta["description"].lower():
+        meta["description"] += "\n#shorts"
+    (job / "metadata.json").write_text(json.dumps(meta, indent=2))
+    print(f"\n✔ {job / 'video.mp4'}  ({meta['duration_s']}s)")
+    return job
+
+
 def main():
     ap = argparse.ArgumentParser(prog="yt-auto")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -97,4 +131,9 @@ def main():
     a = ap.parse_args()
     cfg = load_config()
     if a.cmd == "make":
-        build(cfg, a.format, a.topic, a.job.resolve() if a.job else None)
+        job = a.job.resolve() if a.job else None
+        style = json.loads((job / "job.json").read_text()).get("style") if job else None
+        if (a.format == "short" and not job) or style == "duo":
+            build_short(cfg, a.topic, job)
+        else:
+            build(cfg, a.format, a.topic, job)

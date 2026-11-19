@@ -42,11 +42,11 @@ def _ts_srt(t):
     return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
 
 
-def write_ass(words, size, out: Path, font="Inter ExtraBold"):
+def write_ass(words, size, out: Path, font="Inter ExtraBold", fs=None, margin_v=None):
     W, H = size
     vertical = H > W
-    fs = 92 if vertical else 58
-    margin_v = int(H * 0.17) if vertical else 70
+    fs = fs or (92 if vertical else 58)
+    margin_v = margin_v if margin_v is not None else (int(H * 0.17) if vertical else 70)
     head = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {W}

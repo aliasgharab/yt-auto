@@ -3,3 +3,6 @@ models/
 .venv/
 __pycache__/
 secrets/
+assets/gameplay/
+assets/characters/raw/
+assets/characters/

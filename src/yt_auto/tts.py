@@ -9,13 +9,17 @@ SR = 24000
 _kokoro = None
 
 
-def _tts(text: str, cfg: dict) -> np.ndarray:
+def _kokoro_for(cfg: dict):
     global _kokoro
     if _kokoro is None:
         from kokoro_onnx import Kokoro
         root = cfg["_root"]
         _kokoro = Kokoro(str(root / "models/kokoro-v1.0.onnx"), str(root / "models/voices-v1.0.bin"))
-    samples, sr = _kokoro.create(text, voice=cfg["tts"]["voice"], speed=cfg["tts"]["speed"], lang="en-us")
+    return _kokoro
+
+
+def _tts(text: str, cfg: dict) -> np.ndarray:
+    samples, sr = _kokoro_for(cfg).create(text, voice=cfg["tts"]["voice"], speed=cfg["tts"]["speed"], lang="en-us")
     assert sr == SR
     return samples.astype(np.float32)
 

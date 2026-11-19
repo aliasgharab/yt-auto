@@ -31,8 +31,9 @@ CODE_COLORS = [
 
 
 class Canvas:
-    def __init__(self, size, cfg):
+    def __init__(self, size, cfg, popup=False):
         self.W, self.H = size
+        self.popup = popup
         self.vertical = self.H > self.W
         self.s = min(self.W, self.H) / 1080  # scale unit
         self.font_dir = Path(cfg["render"]["font_dir"])
@@ -41,12 +42,22 @@ class Canvas:
         m = int(70 * self.s)
         self.box = (m, int(260 * self.s) if self.vertical else int(120 * self.s), self.W - m,
                     int(self.H * 0.70) if self.vertical else self.H - int(110 * self.s))
+        if popup:  # floating card: content fills the card; phone-readable text
+            self.s = self.W / 860
+            p = int(48 * self.s)
+            self.box = (p, p, self.W - p, self.H - p)
 
     def font(self, weight: str, px: float):
         return _font(str(self.font_dir / f"Inter-{weight}.ttf"), int(px * self.s))
 
     def mono_font(self, px: float):
         return _font(self.mono, int(px * self.s))
+
+
+def _bg(c):
+    if c.popup:  # transparent; render_popup() frames the content afterwards
+        return Image.new("RGBA", (c.W, c.H), (0, 0, 0, 0))
+    return _background(c.W, c.H).copy()
 
 
 @lru_cache(maxsize=128)
@@ -123,7 +134,7 @@ def heading(draw, c, text, y=None):
 # ---------------- scene renderers: each returns list of PIL images (reveal steps) ----------------
 
 def r_title(v, c):
-    img = _background(c.W, c.H).copy()
+    img = _bg(c)
     d = ImageDraw.Draw(img)
     x0, y0, x1, y1 = c.box
     f, lines = fit_text(d, c, v.get("heading", ""), "Black", 132 if c.vertical else 120, x1 - x0, 4)
@@ -145,7 +156,7 @@ def r_bullets(v, c):
     bullets = v.get("bullets", [])[:5]
     frames = []
     for k in range(1, len(bullets) + 1):
-        img = _background(c.W, c.H).copy()
+        img = _bg(c)
         d = ImageDraw.Draw(img)
         x0, _, x1, y1 = c.box
         y = heading(d, c, v.get("heading", ""))
@@ -155,7 +166,8 @@ def r_bullets(v, c):
                                 2, min_px=34)
             laid.append((f, lines, len(lines) * f.size * 1.2 + 48 * c.s))
         gap = 34 * c.s
-        y += max(0, (y1 - y - sum(h for *_, h in laid) - gap * (len(laid) - 1)) / 2 - 30 * c.s)
+        if not c.popup:
+            y += max(0, (y1 - y - sum(h for *_, h in laid) - gap * (len(laid) - 1)) / 2 - 30 * c.s)
         for i, (f, lines, h) in enumerate(laid[:k]):
             col = ACCENTS[i % len(ACCENTS)]
             panel(d, [x0, y, x1, y + h], c)
@@ -167,7 +179,7 @@ def r_bullets(v, c):
 
 
 def r_code(v, c):
-    img = _background(c.W, c.H).copy()
+    img = _bg(c)
     d = ImageDraw.Draw(img)
     x0, _, x1, y1 = c.box
     y = heading(d, c, v.get("heading", "")) if v.get("heading") else c.box[1]
@@ -179,7 +191,8 @@ def r_code(v, c):
     f = c.mono_font(px)
     lh = f.size * 1.45
     h = len(code) * lh + 130 * c.s
-    y += max(0, (y1 - y - h) / 2 - 30 * c.s)
+    if not c.popup:
+        y += max(0, (y1 - y - h) / 2 - 30 * c.s)
     panel(d, [x0, y, x1, y + h], c)
     for j, col in enumerate([RED, YELLOW, GREEN]):
         cx = x0 + (40 + j * 36) * c.s
@@ -203,7 +216,7 @@ def r_code(v, c):
 
 
 def r_stat(v, c):
-    img = _background(c.W, c.H).copy()
+    img = _bg(c)
     d = ImageDraw.Draw(img)
     x0, y0, x1, y1 = c.box
     vf, vlines = fit_text(d, c, v.get("value", ""), "Black", 230 if c.vertical else 220, x1 - x0, 2, 60)
@@ -222,7 +235,7 @@ def r_compare(v, c):
     frames = []
     sides = [v.get("left", {}), v.get("right", {})]
     for k in (1, 2):
-        img = _background(c.W, c.H).copy()
+        img = _bg(c)
         d = ImageDraw.Draw(img)
         x0, _, x1, y1 = c.box
         y = heading(d, c, v.get("heading", "")) if v.get("heading") else c.box[1]
@@ -232,7 +245,8 @@ def r_compare(v, c):
             rects = [[x0, y, x1, y + h], [x0, y + h + gap, x1, y1]]
         else:
             w = (x1 - x0 - gap) / 2
-            rects = [[x0, y, x0 + w, y1], [x0 + w + gap, y, x1, y1]]
+            yb = min(y1, y + 430 * c.s) if c.popup else y1
+            rects = [[x0, y, x0 + w, yb], [x0 + w + gap, y, x1, yb]]
         for i in range(k):
             side, r, col = sides[i], rects[i], (BLUE, YELLOW)[i]
             panel(d, r, c, accent=col)
@@ -259,7 +273,7 @@ def r_flow(v, c):
     nodes = v.get("nodes", [])[:5]
     frames = []
     for k in range(1, len(nodes) + 1):
-        img = _background(c.W, c.H).copy()
+        img = _bg(c)
         d = ImageDraw.Draw(img)
         x0, _, x1, y1 = c.box
         y = heading(d, c, v.get("heading", "")) if v.get("heading") else c.box[1]
@@ -268,14 +282,14 @@ def r_flow(v, c):
         rects = []
         if c.vertical:
             h = min(170 * c.s, (y1 - y - gap * (n - 1)) / n)
-            top = y + (y1 - y - (n * h + (n - 1) * gap)) / 2
+            top = y if c.popup else y + (y1 - y - (n * h + (n - 1) * gap)) / 2
             for i in range(n):
                 yy = top + i * (h + gap)
                 rects.append([x0 + 60 * c.s, yy, x1 - 60 * c.s, yy + h])
         else:
             w = (x1 - x0 - gap * (n - 1)) / n
             h = min(260 * c.s, (y1 - y))
-            yy = y + (y1 - y - h) / 2
+            yy = y if c.popup else y + (y1 - y - h) / 2
             for i in range(n):
                 rects.append([x0 + i * (w + gap), yy, x0 + i * (w + gap) + w, yy + h])
         for i in range(k):
@@ -310,3 +324,22 @@ def render_scene(visual: dict, size, cfg, outdir: Path, idx: int) -> list[Path]:
         img.save(p)
         paths.append(p)
     return paths
+
+
+def render_popup(visual: dict, cfg, out: Path, width=980, max_h=900) -> Path:
+    """Floating RGBA card sized to its content (final reveal state), for overlaying on gameplay."""
+    c = Canvas((width, max_h), cfg, popup=True)
+    fn = RENDERERS.get(visual.get("type"), r_title)
+    content = fn(visual, c)[-1]
+    _, top, _, bottom = content.getchannel("A").getbbox() or (0, 0, 0, max_h)
+    pad = int(48 * c.s)
+    h = bottom - top + 2 * pad
+    card = Image.new("RGBA", (width, h + 10), (0, 0, 0, 0))
+    d = ImageDraw.Draw(card)
+    r = int(40 * c.s)
+    d.rounded_rectangle([6, 10, width - 1, h + 9], r, fill=(0, 0, 0, 120))           # drop shadow
+    d.rounded_rectangle([0, 0, width - 7, h - 1], r, fill=BG + (242,), outline=YELLOW,
+                        width=max(4, int(6 * c.s)))
+    card.alpha_composite(content.crop((0, top, width, bottom)), (0, pad))
+    card.save(out)
+    return out
