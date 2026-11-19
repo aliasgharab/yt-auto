@@ -54,7 +54,59 @@ def _schema(names):
     }
 
 
-def write_script(cfg: dict, topic: str | None, past_titles: list[str]) -> dict:
+EDIT_CATEGORIES = ["accuracy", "clarity", "hook", "line_length", "popup_fit", "word_count", "voice"]
+
+
+def _editor_schema(names):
+    return {
+        "type": "object", "required": ["problems", "script"],
+        "properties": {
+            "problems": {"type": "array", "items": {
+                "type": "object", "required": ["category", "problem", "fix"],
+                "properties": {"category": {"enum": EDIT_CATEGORIES},
+                               "line": {"type": ["integer", "null"]},
+                               "problem": {"type": "string"}, "fix": {"type": "string"}}}},
+            "script": _schema(names),
+        },
+    }
+
+
+def script_facts(sc: dict, cfg: dict) -> str:
+    """Deterministic measurements handed to the editor (models are bad at counting words)."""
+    f = cfg["formats"]["short"]
+    lo_w, hi_w = f["target_words"]
+    lo_l, hi_l = f["lines"]
+    lines = sc.get("lines", [])
+    counts = [len(ln.get("text", "").split()) for ln in lines]
+    total = sum(counts)
+    long_ = [f"line {i} ({c} words)" for i, c in enumerate(counts) if c > 16]
+    cards_ = [ln["popup"] for ln in lines if ln.get("popup")]
+    long_labels = []
+    for i, ln in enumerate(lines):
+        pu = ln.get("popup") or {}
+        labels = [pu.get("label")] + [x.get("label") for k in ("steps", "items") for x in pu.get(k) or []] + \
+                 [(pu.get(k) or {}).get("label") for k in ("left", "right")]
+        long_labels += [f"line {i}: '{lb}'" for lb in labels if lb and len(lb.split()) > 3]
+    return "\n".join([
+        f"- total words: {total} (target {lo_w}-{hi_w}){'  <-- OUT OF RANGE' if not lo_w <= total <= hi_w else ''}",
+        f"- lines: {len(lines)} (target {lo_l}-{hi_l}){'  <-- OUT OF RANGE' if not lo_l <= len(lines) <= hi_l else ''}",
+        f"- lines over 16 words: {', '.join(long_) or 'none'}",
+        f"- popup cards: {len(cards_)}; first card type: {(lines[0].get('popup') or {}).get('type') if lines else None}",
+        f"- card labels over 3 words: {', '.join(long_labels) or 'none'}",
+    ])
+
+
+def _note(p: dict) -> str:
+    where = f" line {p['line']}" if isinstance(p.get("line"), int) else ""
+    return f"[{p.get('category', '?')}]{where}: {p.get('problem', '').strip()} -> {p.get('fix', '').strip()}"
+
+
+def write_script(cfg: dict, topic: str | None, past_titles: list[str], guidance: str = "",
+                 feedback: list[str] | None = None) -> dict:
+    """Writer pass, then a separate critical-editor pass. Returns the edited script with
+    "editor_notes" (the editor's list of problems it found and fixed)."""
+    from .agents import load_prompt
+
     duo, f = cfg["duo"], cfg["formats"]["short"]
     A, B = duo["asker"], duo["explainer"]
     ca, cb = duo["characters"][A], duo["characters"][B]
@@ -64,44 +116,28 @@ def write_script(cfg: dict, topic: str | None, past_titles: list[str]) -> dict:
                   "TOPIC: pick ONE specific embedded-systems or operating-system idea from this niche and "
                   f"frame it as an everyday question: {cfg['channel']['niche']}\n"
                   "Not one of these already-made videos:\n" + "\n".join(f"- {t}" for t in past_titles[-60:]))
-    prompt = f"""Write a funny, super easy-to-follow YouTube Short script: a conversation between two characters
-explaining one embedded-systems / operating-systems idea.
+    guidance_block = (f"\nWHAT WORKS ON THIS CHANNEL (from our analytics; follow it unless it conflicts with "
+                      f"the rules above):\n{guidance.strip()}\n" if guidance and guidance.strip() else "")
+    fb = [x.strip() for x in (feedback or []) if x and x.strip()][-10:]
+    feedback_block = ("\nRECENT HUMAN REVIEWER REJECTIONS (do not repeat these mistakes):\n"
+                      + "\n".join(f"- {x}" for x in fb) + "\n" if fb else "")
+    common = dict(A=A, B=B, A_personality=ca["personality"], B_personality=cb["personality"],
+                  lo_w=lo_w, hi_w=hi_w, lo_l=lo_l, hi_l=hi_l, popup_guide=cards.POPUP_GUIDE)
 
-CHARACTERS
-- {A}: {ca['personality']}. Asks the question, reacts, pushes back.
-- {B}: {cb['personality']}. Answers. Explains with one everyday analogy.
+    # pass 1: writer
+    draft = script._call_claude(
+        load_prompt("duo_writer", topic_line=topic_line, guidance_block=guidance_block,
+                    feedback_block=feedback_block, **common), cfg, _schema([A, B]))
 
-{topic_line}
-
-STRUCTURE (like a meme Short)
-1. {A} asks the question as a hook, starting with "{B}, ..." This question is also the video title.
-2. {B} gives a short, blunt or absurdly literal answer.
-3. {A} reacts ("Wait, what?", "That can't be right") so {B} explains.
-4. {B} explains the real idea in the SIMPLEST way, using one everyday analogy.
-5. End on a quick punchline from {B} (deadpan, literal humor) that loops nicely back to the start.
-
-RULES
-- {lo_w}-{hi_w} words TOTAL, {lo_l}-{hi_l} lines. Each line <= 16 words.
-- ONE idea only. A 12-year-old must fully understand it. No jargon; if a tech word is unavoidable,
-  explain it in five words or less. Prefer short words and short sentences.
-- 100% technically correct, even though simple. Every answer must logically match the line before it.
-- Written for text-to-speech: no emoji in spoken text, no parentheses, no symbols; numbers as words.
-- Give a "popup" card to most lines (at least 5). The first line's popup is a "title" card.
-  Cards should SHOW the idea with pictures: choose emojis that literally depict the analogy.
-- Title: the question, <= 60 chars. Description: one sentence + 3 hashtags including #shorts. 8-12 tags.
-
-{cards.POPUP_GUIDE}"""
-    schema = _schema([A, B])
-    sc = script._call_claude(prompt, cfg, schema)
-    check = f"""You are a strict editor for a kids-friendly tech Short. Review this script JSON.
-Fix: any technical inaccuracy; any answer that does not logically match the line before it
-(e.g. replying "Right" to a question whose true answer is no); anything a 12-year-old would not understand;
-jargon; lines over 16 words; total over {hi_w} words; card labels over 3 words; emojis that don't
-clearly picture the idea; awkward phrasing for text-to-speech.
-Keep it funny, keep the characters' voices, keep the structure. Return the full corrected JSON.
-
-{json.dumps(sc, indent=1, ensure_ascii=False)}"""
-    return script._call_claude(check, cfg, schema)
+    # pass 2: editor (separate call, critical persona, must enumerate problems before fixing)
+    draft.pop("editor_notes", None)
+    edited = script._call_claude(
+        load_prompt("duo_editor", facts=script_facts(draft, cfg), draft=json.dumps(draft, indent=1, ensure_ascii=False),
+                    guidance_block=(guidance_block + feedback_block).replace("the rules above", "the rules"),
+                    **common), cfg, _editor_schema([A, B]))
+    sc = edited.get("script") or draft
+    sc["editor_notes"] = [_note(p) for p in edited.get("problems", [])]
+    return sc
 
 
 # ----------------------------------------------------------------------------- audio

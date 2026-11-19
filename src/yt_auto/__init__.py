@@ -3,6 +3,8 @@
   yt-auto make --format short [--topic "..."]   # full local build -> out/<slug>-<format>/
   yt-auto make --from out/<dir>                  # rebuild an existing job, reusing its script
   yt-auto youtube-auth / youtube-check            # one-time YouTube login / verify (docs/youtube-setup.md)
+  yt-auto qa --from out/<dir>                    # QA-check a finished job -> <dir>/qa.json
+  yt-auto ideas --n 3                            # research video ideas (prints only)
 """
 
 import argparse
@@ -147,9 +149,10 @@ def main():
     mk.add_argument("--format", choices=["short", "long"], default="short")
     mk.add_argument("--topic")
     mk.add_argument("--from", dest="job", type=Path, help="existing job dir to rebuild")
-    from . import pipeline, youtube
+    from . import agents, pipeline, youtube
     youtube.register(sub)
     pipeline.register(sub)
+    agents.register(sub)
     a = ap.parse_args()
     if youtube.run(a.cmd):
         return
