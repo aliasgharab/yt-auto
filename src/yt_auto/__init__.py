@@ -2,6 +2,8 @@
 
   yt-auto make --format short [--topic "..."]   # full local build -> out/<slug>-<format>/
   yt-auto make --from out/<dir>                  # rebuild an existing job, reusing its script
+  yt-auto qa --from out/<dir>                    # QA-check a finished job -> <dir>/qa.json
+  yt-auto ideas --n 3                            # research video ideas (prints only)
 """
 
 import argparse
@@ -128,8 +130,12 @@ def main():
     mk.add_argument("--format", choices=["short", "long"], default="short")
     mk.add_argument("--topic")
     mk.add_argument("--from", dest="job", type=Path, help="existing job dir to rebuild")
+    from . import agents
+    agents.register(sub)
     a = ap.parse_args()
     cfg = load_config()
+    if hasattr(a, "func"):
+        raise SystemExit(a.func(cfg, a))
     if a.cmd == "make":
         job = a.job.resolve() if a.job else None
         style = json.loads((job / "job.json").read_text()).get("style") if job else None
