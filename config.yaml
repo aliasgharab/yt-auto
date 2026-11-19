@@ -62,3 +62,11 @@ render:
   encoder: h264_nvenc        # falls back to libopenh264 automatically
 
 output_dir: out
+
+# Runtime orchestration (yt-auto nightly / publish / stats / research / analyze; see deploy/systemd)
+publish:
+  timezone: America/Toronto
+  slots: ["12:00", "19:00"]   # local peak-hour upload slots; one video per slot
+  min_lead_hours: 1           # never schedule closer than this to "now"
+  auto_approve: false         # true: nightly ticks Approve itself when QA passes (zero-intervention mode)
+  shorts_per_night: 2
