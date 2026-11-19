@@ -2,6 +2,7 @@
 
   yt-auto make --format short [--topic "..."]   # full local build -> out/<slug>-<format>/
   yt-auto make --from out/<dir>                  # rebuild an existing job, reusing its script
+  yt-auto youtube-auth / youtube-check            # one-time YouTube login / verify (docs/youtube-setup.md)
 """
 
 import argparse
@@ -128,7 +129,11 @@ def main():
     mk.add_argument("--format", choices=["short", "long"], default="short")
     mk.add_argument("--topic")
     mk.add_argument("--from", dest="job", type=Path, help="existing job dir to rebuild")
+    from . import youtube
+    youtube.register(sub)
     a = ap.parse_args()
+    if youtube.run(a.cmd):
+        return
     cfg = load_config()
     if a.cmd == "make":
         job = a.job.resolve() if a.job else None
