@@ -4,7 +4,7 @@ channel:
     Embedded systems and operating-system concepts made dead simple: interrupts,
     watchdogs, GPIO, PWM, timers, DMA, bootloaders, RTOS tasks, scheduling,
     context switches, stack vs heap, virtual memory, deadlocks, race conditions,
-    system calls, drivers. Audience: curious teens, students and new developers.
+    system calls, drivers. Audience: middle- and high-school students (13-18) and new developers; real terms, explained clearly, not watered down.
   voice_tone: "clear, confident, slightly playful; like a smart friend explaining at a whiteboard"
 
 llm:

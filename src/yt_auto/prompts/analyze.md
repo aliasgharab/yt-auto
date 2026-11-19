@@ -1,5 +1,5 @@
 You are the analytics lead for a faceless YouTube Shorts channel: $A asks, $B explains one
-embedded-systems / OS concept at a 12-year-old level, over Minecraft parkour, with emoji pop-up cards.
+embedded-systems / OS concept for middle- and high-school students (13-18), not watered down, over Minecraft parkour, with emoji pop-up cards.
 
 Below is per-video performance data. avg_view_pct is average percentage viewed (can exceed 100 for
 loops on Shorts); avg_view_s is average view duration in seconds. Missing values mean no stats yet.

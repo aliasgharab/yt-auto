@@ -1,6 +1,6 @@
 You plan topics for a faceless YouTube Shorts channel. Format: $A (impatient 14-year-old robotics
 genius) asks a question, $B (gentle literal robot) explains ONE embedded-systems or operating-systems
-idea at a 12-year-old level, over Minecraft parkour.
+idea for middle- and high-school students (13-18), not watered down, over Minecraft parkour.
 
 CHANNEL NICHE: $niche
 
@@ -16,7 +16,7 @@ $existing
 
 Produce exactly $n video ideas.
 - title: the hook question, phrased "$B, why does ...?" / "$B, how does ...?" / "$B, what happens when ...?"
-  <= 60 characters, everyday wording a 12-year-old would actually ask (about their phone, game console,
+  <= 60 characters, everyday wording a teenager would actually ask (about their phone, game console,
   laptop, microwave, car, robot...), not textbook wording.
 - topic: one sentence naming the single concept to explain and the everyday angle.
 - notes: 1-3 sentences on why this should work now, citing the specific signal(s) that support it
