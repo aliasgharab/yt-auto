@@ -1,0 +1,14 @@
+[Unit]
+Description=yt-auto nightly: build Shorts from Notion ideas, QA, ask for approval, publish
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/aaab/projects/yt-auto
+Environment=PATH=/home/aaab/.local/bin:/home/aaab/projects/yt-auto/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/home/aaab/projects/yt-auto/.venv/bin/yt-auto nightly
+TimeoutStartSec=4h

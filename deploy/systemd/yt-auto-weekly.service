@@ -1,0 +1,15 @@
+[Unit]
+Description=yt-auto weekly: research new ideas, refresh stats, rewrite What Works
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/aaab/projects/yt-auto
+Environment=PATH=/home/aaab/.local/bin:/home/aaab/projects/yt-auto/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Nice=10
+ExecStart=-/home/aaab/projects/yt-auto/.venv/bin/yt-auto research
+ExecStart=-/home/aaab/projects/yt-auto/.venv/bin/yt-auto stats
+ExecStart=/home/aaab/projects/yt-auto/.venv/bin/yt-auto analyze
+TimeoutStartSec=2h

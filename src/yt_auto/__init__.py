@@ -87,8 +87,24 @@ def build(cfg: dict, fmt: str, topic: str | None = None, job: Path | None = None
     return job
 
 
-def build_short(cfg: dict, topic: str | None = None, job: Path | None = None) -> Path:
-    """Two-character dialogue Short over gameplay."""
+def _write_duo_script(cfg: dict, topic, past, guidance: str = "", feedback: list[str] | None = None) -> dict:
+    """Call duo.write_script with guidance/feedback when it supports them (older 3-arg signature otherwise)."""
+    import inspect
+
+    from . import duo
+
+    params = inspect.signature(duo.write_script).parameters
+    kw = {}
+    if "guidance" in params:
+        kw["guidance"] = guidance
+    if "feedback" in params:
+        kw["feedback"] = feedback
+    return duo.write_script(cfg, topic, past, **kw)
+
+
+def build_short(cfg: dict, topic: str | None = None, job: Path | None = None, guidance: str = "",
+                feedback: list[str] | None = None, on_script=None) -> Path:
+    """Two-character dialogue Short over gameplay. on_script(sc, job) is called once the script exists."""
     from . import duo
 
     out_root = cfg["_root"] / cfg["output_dir"]
@@ -98,12 +114,14 @@ def build_short(cfg: dict, topic: str | None = None, job: Path | None = None) ->
     else:
         t0 = _stage("dialogue script + edit pass (claude -p)")
         past = [json.loads(p.read_text())["title"] for p in out_root.glob("*/script.json")]
-        sc = duo.write_script(cfg, topic, past)
+        sc = _write_duo_script(cfg, topic, past, guidance, feedback)
         _done(t0)
         job = job or out_root / f"{date.today():%Y%m%d}-{_slug(sc['title'])}-short"
         job.mkdir(parents=True, exist_ok=True)
         (job / "script.json").write_text(json.dumps(sc, indent=2))
         (job / "job.json").write_text(json.dumps({"format": "short", "style": "duo", "created": time.time()}))
+    if on_script:
+        on_script(sc, job)
     words = sum(len(ln["text"].split()) for ln in sc["lines"])
     print(f"  {sc['title']!r}: {len(sc['lines'])} lines, {words} words")
     for ln in sc["lines"]:
@@ -128,8 +146,12 @@ def main():
     mk.add_argument("--format", choices=["short", "long"], default="short")
     mk.add_argument("--topic")
     mk.add_argument("--from", dest="job", type=Path, help="existing job dir to rebuild")
+    from . import pipeline
+    pipeline.register(sub)
     a = ap.parse_args()
     cfg = load_config()
+    if getattr(a, "func", None):
+        raise SystemExit(a.func(a, cfg))
     if a.cmd == "make":
         job = a.job.resolve() if a.job else None
         style = json.loads((job / "job.json").read_text()).get("style") if job else None
