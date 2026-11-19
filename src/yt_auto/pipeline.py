@@ -1,7 +1,9 @@
 """Runtime orchestration around the Notion "Content Pipeline" board.
 
-  yt-auto nightly [--count N]   build Shorts from Idea rows -> QA -> Needs Approval (+ phone push), then publish
-  yt-auto publish               approved rows -> YouTube (scheduled at next free peak slot); rejected -> Rejected;
+  yt-auto nightly [--count N]   build Shorts from Idea rows -> QA -> private YouTube upload (preview) ->
+                                Needs Approval (+ phone push with the YouTube Studio link), then publish
+  yt-auto publish               approved rows -> schedule the private upload for the next free peak slot
+                                (videos.update, no re-upload); rejected -> stays private, row Rejected;
                                 Scheduled rows whose time passed -> Live
   yt-auto stats                 refresh Views/Likes/retention for Scheduled + Live rows
   yt-auto research [--n 10]     researcher agent -> new Idea rows (deduped by title)
@@ -9,6 +11,13 @@
   yt-auto ntfy-topic [--test]   print the phone-notification topic + how to subscribe
 
 Status flow: Idea -> Scripted -> Rendered -> Needs Approval -> Scheduled -> Live   (or Rejected / Failed)
+
+Preview: the render host can be an ephemeral CI runner, so the video can't wait on disk for approval.
+After QA it is uploaded to YouTube as PRIVATE without publishAt (Video ID + YouTube URL set while the
+row is still Needs Approval; preview it in YouTube Studio). Without YouTube configured the video stays
+in the job dir (laptop) and, on GitHub Actions, is also copied to out/artifacts/ for the workflow to keep
+as a 7-day run artifact (run URL in QA Notes). Approving a row that has no Video ID uploads the local
+job video at publish time (laptop path).
 """
 
 from __future__ import annotations
@@ -17,7 +26,9 @@ import contextlib
 import fcntl
 import json
 import logging
+import os
 import re
+import shutil
 import sys
 import traceback
 from datetime import date, datetime, time as dtime, timedelta
@@ -137,6 +148,30 @@ def youtube_url(video_id: str, fmt: str | None) -> str:
     return f"https://youtube.com/shorts/{video_id}" if fmt != "long" else f"https://youtu.be/{video_id}"
 
 
+def studio_url(video_id: str) -> str:
+    return f"https://studio.youtube.com/video/{video_id}/edit"
+
+
+def ci_run_url() -> str | None:
+    """Link to the current GitHub Actions run (None when not on Actions)."""
+    e = os.environ
+    if e.get("GITHUB_ACTIONS") == "true" and e.get("GITHUB_RUN_ID") and e.get("GITHUB_REPOSITORY"):
+        return f"{e.get('GITHUB_SERVER_URL', 'https://github.com')}/{e['GITHUB_REPOSITORY']}/actions/runs/{e['GITHUB_RUN_ID']}"
+    return None
+
+
+def _youtube_ready():
+    """The youtube module when it is importable and configured, else None."""
+    yt = _optional("youtube")
+    if yt is None:
+        return None
+    try:
+        return yt if yt.is_configured() else None
+    except Exception as e:
+        log.warning("youtube.is_configured() failed: %s", e)
+        return None
+
+
 # ---------------------------------------------------------------- slot scheduling
 
 def _as_dt(v, tz: ZoneInfo) -> datetime | None:
@@ -175,47 +210,60 @@ def publish(cfg: dict, nc, now: datetime | None = None) -> dict:
     summary = {"rejected": 0, "scheduled": 0, "live": 0, "waiting": 0, "errors": 0}
 
     pending = nc.query("Needs Approval")
-    approved = []
-    for r in pending:
-        if r.get("Reject"):
-            nc.update_row(r["_id"], {"Status": "Rejected"})   # Feedback left as the user wrote it
-            log.info("rejected: %s", r.get("Title"))
-            summary["rejected"] += 1
-        elif r.get("Approve"):
-            approved.append(r)
+    rejected = [r for r in pending if r.get("Reject")]
+    approved = [r for r in pending if r.get("Approve") and not r.get("Reject")]
+    yt = _youtube_ready() if (approved or any(r.get("Video ID") for r in rejected)) else None
+
+    for r in rejected:
+        vid = r.get("Video ID")
+        if vid:
+            # never delete automatically: the private upload stays in Studio for the user to remove
+            try:
+                if yt is None:
+                    raise RuntimeError("YouTube not configured")
+                yt.keep_private(vid)
+                log.info("rejected %r: video %s stays private on YouTube (delete it in Studio if unwanted)",
+                         r.get("Title"), vid)
+            except Exception as e:
+                log.warning("rejected %r: could not confirm video %s is private: %s", r.get("Title"), vid, e)
+        nc.update_row(r["_id"], {"Status": "Rejected"})   # Feedback left as the user wrote it
+        log.info("rejected: %s", r.get("Title"))
+        summary["rejected"] += 1
 
     scheduled = nc.query(["Scheduled", "Live"])
-    if approved:
-        yt = _optional("youtube")
-        ok = False
-        if yt is not None:
+    if approved and yt is None:
+        log.warning("YouTube upload not configured: leaving %d approved row(s) in Needs Approval", len(approved))
+        summary["waiting"] = len(approved)
+    elif approved:
+        taken = [_as_dt(r.get("Publish At"), tz) for r in scheduled]
+        for r in approved:
+            title = r.get("Title")
             try:
-                ok = bool(yt.is_configured())
-            except Exception as e:
-                log.warning("youtube.is_configured() failed: %s", e)
-        if not ok:
-            log.warning("YouTube upload not configured: leaving %d approved row(s) in Needs Approval", len(approved))
-            summary["waiting"] = len(approved)
-        else:
-            taken = [_as_dt(r.get("Publish At"), tz) for r in scheduled]
-            for r in approved:
-                title = r.get("Title")
-                try:
+                vid = r.get("Video ID")
+                if not vid:   # laptop path / preview upload failed at night: upload the local render now
                     job = job_path(cfg, r.get("Job") or "")
                     if not r.get("Job") or not (job / "video.mp4").exists():
-                        raise FileNotFoundError(f"rendered video missing: {job / 'video.mp4'}")
-                    slot = next_slot(now, pc["slots"], tz, taken, pc["min_lead_hours"])
-                    vid = yt.upload(job, slot)
+                        raise FileNotFoundError(
+                            f"no YouTube preview upload and rendered video missing ({job / 'video.mp4'}); "
+                            "if it was rendered on CI, download the run artifact and upload it by hand")
+                    vid = yt.upload(job)
+                slot = next_slot(now, pc["slots"], tz, taken, pc["min_lead_hours"]) if pc["slots"] else None
+                yt.schedule(vid, slot)
+                vals = {"Video ID": vid, "YouTube URL": youtube_url(vid, r.get("Format"))}
+                if slot is None:   # no slots configured: public right away
+                    vals.update({"Status": "Live", "Publish At": now})
+                    summary["live"] += 1
+                else:
                     taken.append(slot)
-                    nc.update_row(r["_id"], {"Status": "Scheduled", "Video ID": vid, "Publish At": slot,
-                                             "YouTube URL": youtube_url(vid, r.get("Format"))})
-                    log.info("scheduled %r as %s for %s", title, vid, slot.isoformat())
+                    vals.update({"Status": "Scheduled", "Publish At": slot})
                     summary["scheduled"] += 1
-                except Exception as e:
-                    log.error("upload failed for %r: %s", title, e)
-                    summary["errors"] += 1
-                    notify.send("yt-auto: upload failed", f"{title}: {e}"[:400], click=r.get("_url"),
-                                tags=["warning"])
+                nc.update_row(r["_id"], vals)
+                log.info("%s %r (%s) for %s", vals["Status"].lower(), title, vid, vals["Publish At"].isoformat())
+            except Exception as e:
+                log.error("publish failed for %r: %s", title, e)
+                summary["errors"] += 1
+                notify.send("yt-auto: publish failed", f"{title}: {e}"[:400], click=r.get("_url"),
+                            tags=["warning"])
 
     for r in scheduled:
         at = _as_dt(r.get("Publish At"), tz)
@@ -255,8 +303,42 @@ def _qa(cfg: dict, job: Path) -> dict:
     return {"verdict": v if v in ("pass", "warn", "fail") else "warn", "notes": str(res.get("notes", ""))}
 
 
-def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=None) -> dict:
-    """Build one Short for `row`, moving it through Scripted -> Rendered -> Needs Approval | Failed."""
+def preview(cfg: dict, job: Path) -> dict:
+    """Make a passed render reviewable after this process exits. Returns
+    {"video_id"?, "studio"?, "note"}: a private, unscheduled YouTube upload when possible; otherwise the
+    file stays in the job dir and (on GitHub Actions) is copied to out/artifacts/ for the run artifact."""
+    yt = _youtube_ready()
+    err = None
+    if yt is not None:
+        try:
+            vid = yt.upload(job)   # private, no publishAt; idempotent via job/upload.json
+            return {"video_id": vid, "studio": studio_url(vid),
+                    "note": f"Preview (private): {studio_url(vid)}"}
+        except Exception as e:
+            err = f"{type(e).__name__}: {e}"
+            log.error("preview upload failed for %s: %s", job.name, err)
+    run = ci_run_url()
+    where = "YouTube not configured" if err is None else f"preview upload failed ({err[:300]})"
+    if run:
+        art = cfg["_root"] / cfg["output_dir"] / "artifacts"
+        art.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(job / "video.mp4", art / f"{job.name}.mp4")
+        return {"note": f"{where}: video kept 7 days as run artifact 'videos' -> {run}", "run": run}
+    return {"note": f"{where}: video at {job / 'video.mp4'}"}
+
+
+def _call_build(build, cfg, topic, **kw):
+    """Pass only the keyword arguments `build` accepts (older/fake builders lack `past`)."""
+    import inspect
+    params = inspect.signature(build).parameters
+    if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
+        kw = {k: v for k, v in kw.items() if k in params}
+    return build(cfg, topic, None, **kw)
+
+
+def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=None,
+            past: list[str] | None = None) -> dict:
+    """Build one Short for `row`: Scripted -> Rendered -> (private preview upload) -> Needs Approval | Failed."""
     if build is None:
         from . import build_short as build
     topic = (row.get("Topic") or "").strip() or None
@@ -271,23 +353,40 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
                             "Format": "short"})
 
     try:
-        job = build(cfg, topic, None, guidance=guidance, feedback=feedback, on_script=on_script)
+        job = _call_build(build, cfg, topic, guidance=guidance, feedback=feedback, on_script=on_script,
+                          past=past)
         meta = json.loads((job / "metadata.json").read_text())
         nc.update_row(rid, {"Status": "Rendered", "Job": job_ref(cfg, job),
                             "Duration (s)": meta.get("duration_s")})
         qa = _qa(cfg, job)
         ok = qa["verdict"] != "fail"
         vals = {"QA": qa["verdict"], "QA Notes": qa["notes"], "Status": "Needs Approval" if ok else "Failed"}
+        pv = {}
+        if ok:
+            pv = preview(cfg, job)
+            vals["QA Notes"] = f"{qa['notes']}\n\n{pv['note']}".strip()
+            if pv.get("video_id"):
+                vals["Video ID"] = pv["video_id"]
+                vals["YouTube URL"] = youtube_url(pv["video_id"], "short")
         if ok and qa["verdict"] == "pass" and pcfg(cfg)["auto_approve"]:
             vals["Approve"] = True
         nc.update_row(rid, vals)
         title = meta.get("title", row.get("Title"))
         if ok:
             auto = vals.get("Approve")
-            notify.send("New Short ready" + (" (auto-approved)" if auto else ", approve?"),
-                        f"{title} - {meta.get('duration_s')}s, QA {qa['verdict']}" +
-                        ("" if auto else "\nTick Approve (or Reject + Feedback) in Notion."),
-                        click=row.get("_url"), tags=["clapper"])
+            notion = row.get("_url")
+            msg = f"{title} - {meta.get('duration_s')}s, QA {qa['verdict']}"
+            if pv.get("studio"):
+                msg += "\nTap to preview in YouTube Studio (private)."
+            elif pv.get("run"):
+                msg += "\nVideo is a 7-day artifact of the CI run (tap to open)."
+            if not auto:
+                msg += "\nTick Approve (or Reject + Feedback) in Notion."
+            if notion:
+                msg += f"\nNotion: {notion}"
+            actions = [("Notion", notion)] if notion and (pv.get("studio") or pv.get("run")) else None
+            notify.send("New Short ready" + (" (auto-approved)" if auto else ", approve?"), msg,
+                        click=pv.get("studio") or pv.get("run") or notion, tags=["clapper"], actions=actions)
         else:
             notify.send("Short failed QA", f"{title}: {qa['notes']}"[:400], click=row.get("_url"), tags=["x"])
         log.info("%s -> %s (QA %s)", title, vals["Status"], qa["verdict"])
@@ -312,7 +411,12 @@ def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
     while len(ideas) < count:
         ideas.append(nc.create_row({"Title": "(auto topic, writing script...)", "Status": "Idea",
                                     "Source": "auto", "Format": "short"}))
-    results = [produce(cfg, nc, r, guidance, feedback, build) for r in ideas]
+    try:   # titles already made: Notion is the memory on ephemeral runners (out/ starts empty there)
+        past = [r["Title"] for r in nc.query(["Needs Approval", "Scheduled", "Live", "Rejected"]) if r.get("Title")]
+    except Exception as e:
+        log.warning("could not read past titles: %s", e)
+        past = []
+    results = [produce(cfg, nc, r, guidance, feedback, build, past) for r in ideas]
     publish(cfg, nc)
     return results
 

@@ -23,14 +23,24 @@ import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-CONFIG_DIR = Path(os.environ.get("YT_AUTO_CONFIG_DIR", Path.home() / ".config" / "yt-auto"))
+from .config import config_dir
+
+CONFIG_DIR = config_dir()                      # YT_AUTO_CONFIG_DIR overrides
 CLIENT_SECRET = CONFIG_DIR / "client_secret.json"
 TOKEN = CONFIG_DIR / "youtube_token.json"
 SCOPES = [
+    "https://www.googleapis.com/auth/youtube",              # videos.update (schedule / keep private)
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
 ]
+# videos.update accepts any of these; youtube.upload alone is NOT enough (tokens made before
+# 2026-11-19 only had upload/readonly: rerun `yt-auto youtube-auth`).
+MANAGE_SCOPES = ("https://www.googleapis.com/auth/youtube", "https://www.googleapis.com/auth/youtube.force-ssl",
+                 "https://www.googleapis.com/auth/youtubepartner")
+# status properties videos.update can set; any other omitted one is cleared by the API
+MUTABLE_STATUS = ("embeddable", "license", "privacyStatus", "publicStatsViewable", "publishAt",
+                  "selfDeclaredMadeForKids", "containsSyntheticMedia")
 
 CATEGORY_ID = "28"            # Science & Technology
 TITLE_MAX = 100               # characters
@@ -56,14 +66,18 @@ def _save_token(creds) -> None:
     os.chmod(TOKEN, 0o600)
 
 
-def _credentials():
+def _credentials(manage: bool = False):
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
 
     if not is_configured():
         raise RuntimeError(f"YouTube not configured: need {CLIENT_SECRET} and {TOKEN} "
                            "(see docs/youtube-setup.md, then run `yt-auto youtube-auth`)")
-    creds = Credentials.from_authorized_user_file(str(TOKEN), SCOPES)
+    # scopes=None: refresh with exactly what the token was granted (asking for more fails the refresh)
+    creds = Credentials.from_authorized_user_file(str(TOKEN))
+    if manage and not set(creds.scopes or ()) & set(MANAGE_SCOPES):
+        raise RuntimeError("YouTube token lacks the 'youtube' scope needed to schedule/update videos; "
+                           "rerun `yt-auto youtube-auth` (and update the YT_TOKEN_JSON secret on CI)")
     if not creds.valid:
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -86,9 +100,9 @@ def authorize() -> None:
     print(f"saved token to {TOKEN}")
 
 
-def _youtube():
+def _youtube(manage: bool = False):
     from googleapiclient.discovery import build
-    return build("youtube", "v3", credentials=_credentials(), cache_discovery=False)
+    return build("youtube", "v3", credentials=_credentials(manage), cache_discovery=False)
 
 
 def _analytics():
@@ -200,8 +214,13 @@ def _with_retry(fn, sleep=time.sleep):
             sleep(random.random() * 2 ** (retry + 1))
 
 
-def upload(job: Path, publish_at: datetime | None) -> str:
-    """Upload job/video.mp4 as a private (optionally scheduled) video; returns the video id."""
+def studio_url(video_id: str) -> str:
+    return f"https://studio.youtube.com/video/{video_id}/edit"
+
+
+def upload(job: Path, publish_at: datetime | None = None) -> str:
+    """Upload job/video.mp4 as a private video (scheduled when publish_at is given); returns the id.
+    Idempotent: job/upload.json records the id and a second call returns it without uploading."""
     from googleapiclient.http import MediaFileUpload
 
     job = Path(job)
@@ -232,6 +251,57 @@ def upload(job: Path, publish_at: datetime | None) -> str:
         except Exception as e:  # noqa: BLE001 - custom thumbnails need a verified (phone) channel
             print(f"  thumbnail not set: {e}", flush=True)
     return video_id
+
+
+# ---------------------------------------------------------------- update an uploaded video
+
+def status_body(current: dict, publish_at: str | None, privacy: str) -> dict:
+    """Full `status` for videos.update: keeps current mutable values (omitted ones would be cleared)."""
+    st = {k: current[k] for k in MUTABLE_STATUS if k in current and k != "publishAt"}
+    st["privacyStatus"] = privacy
+    if publish_at:
+        st["publishAt"] = publish_at
+    st.setdefault("selfDeclaredMadeForKids", False)
+    st.setdefault("containsSyntheticMedia", True)
+    return st
+
+
+def _get_status(yt, video_id: str) -> dict:
+    items = _with_retry(lambda: yt.videos().list(part="status", id=video_id).execute()).get("items") or []
+    if not items:
+        raise RuntimeError(f"video {video_id} not found on the channel (deleted?)")
+    return items[0].get("status", {})
+
+
+def _set_status(yt, video_id: str, status: dict) -> dict:
+    resp = _with_retry(lambda: yt.videos().update(part="status", body={"id": video_id, "status": status})
+                       .execute())
+    return resp.get("status", status)
+
+
+def schedule(video_id: str, publish_at: datetime | None, now: datetime | None = None) -> dict:
+    """Make an already-uploaded private video go public at publish_at (YouTube flips it), or right
+    away when publish_at is None / not in the future. No re-upload. Returns the new status.
+    A video that is already public is left alone."""
+    now = now or datetime.now(timezone.utc)
+    yt = _youtube(manage=True)
+    cur = _get_status(yt, video_id)
+    if cur.get("privacyStatus") == "public":
+        return cur
+    if publish_at is not None and publish_at > now:
+        st = status_body(cur, format_publish_at(publish_at), "private")   # publishAt requires private
+    else:
+        st = status_body(cur, None, "public")
+    return _set_status(yt, video_id, st)
+
+
+def keep_private(video_id: str) -> dict:
+    """Rejected video: make sure it stays private (drop any publishAt). Never deletes anything."""
+    yt = _youtube(manage=True)
+    cur = _get_status(yt, video_id)
+    if cur.get("privacyStatus") == "private" and not cur.get("publishAt"):
+        return cur                                       # already private, unscheduled: no write
+    return _set_status(yt, video_id, status_body(cur, None, "private"))
 
 
 # ---------------------------------------------------------------- stats

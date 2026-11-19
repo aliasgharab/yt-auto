@@ -57,7 +57,9 @@ formats:
 
 render:
   fps: 30
-  font_dir: /home/aaab/.local/share/fonts/Inter      # Inter-{Regular,SemiBold,Bold,ExtraBold}.ttf
+  font_dir: ~/.local/share/fonts/Inter      # Inter-{Regular,SemiBold,Bold,ExtraBold,Black}.ttf (~ and $VARS expand)
+  # font paths that don't exist fall back to the same file name under ~/.local/share/fonts or
+  # /usr/share/fonts (CI installs both there: deploy/ci/install_fonts.sh)
   mono_font: /usr/share/fonts/cascadia-mono-nf-fonts/CascadiaMonoNF-Regular.otf
   encoder: h264_nvenc        # falls back to libopenh264 automatically
 

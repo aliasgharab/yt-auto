@@ -1,4 +1,5 @@
-"""Phone push notifications via ntfy.sh (free, no account). Topic lives in ~/.config/yt-auto/ntfy.json."""
+"""Phone push notifications via ntfy.sh (free, no account). Topic lives in ~/.config/yt-auto/ntfy.json
+(or $YT_AUTO_CONFIG_DIR/ntfy.json); env NTFY_TOPIC overrides the topic."""
 
 from __future__ import annotations
 
@@ -10,14 +11,19 @@ import secrets
 import urllib.request
 from pathlib import Path
 
+from .config import config_dir
+
 log = logging.getLogger(__name__)
 
-CONFIG_PATH = Path.home() / ".config" / "yt-auto" / "ntfy.json"
+CONFIG_PATH = config_dir() / "ntfy.json"   # YT_AUTO_CONFIG_DIR overrides the dir
 DEFAULT_SERVER = "https://ntfy.sh"
 
 
 def settings(path: Path = CONFIG_PATH) -> dict:
-    """Load (or create on first use) {server, topic}; the topic is a random unguessable string."""
+    """Load (or create on first use) {server, topic}; the topic is a random unguessable string.
+    Env NTFY_TOPIC (and optional NTFY_SERVER) win over the file, e.g. on CI."""
+    if os.environ.get("NTFY_TOPIC"):
+        return {"server": os.environ.get("NTFY_SERVER") or DEFAULT_SERVER, "topic": os.environ["NTFY_TOPIC"]}
     if path.exists():
         return json.loads(path.read_text())
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -39,8 +45,9 @@ def _header(v: str) -> str:
 
 
 def send(title: str, message: str, click: str | None = None, tags: list[str] | None = None,
-         priority: int | None = None, path: Path = CONFIG_PATH, opener=None) -> bool:
-    """Best effort: never raises, returns True on success."""
+         priority: int | None = None, path: Path = CONFIG_PATH, opener=None,
+         actions: list[tuple[str, str]] | None = None) -> bool:
+    """Best effort: never raises, returns True on success. actions: [(label, url)] -> "view" buttons."""
     try:
         s = settings(path)
         headers = {"Title": _header(title)}
@@ -50,6 +57,9 @@ def send(title: str, message: str, click: str | None = None, tags: list[str] | N
             headers["Tags"] = ",".join(tags)
         if priority:
             headers["Priority"] = str(priority)
+        if actions:
+            headers["Actions"] = _header("; ".join(f"view, {lbl.replace(',', ' ')}, {url}"
+                                                   for lbl, url in actions if url))
         req = urllib.request.Request(f"{s.get('server', DEFAULT_SERVER).rstrip('/')}/{s['topic']}",
                                      data=message.encode(), method="POST", headers=headers)
         with (opener or urllib.request.urlopen)(req, timeout=20) as r:

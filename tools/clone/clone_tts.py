@@ -1,10 +1,10 @@
 """Batch zero-shot voice cloning with Chatterbox (runs in tools/clone/.venv).
 usage: clone_tts.py jobs.json   where jobs = [{"text", "ref", "out", "exaggeration"?, "cfg_weight"?}]"""
-import json, sys, time
+import json, os, sys, time
 import torch, torchaudio
 from chatterbox.tts import ChatterboxTTS
 
-torch.set_num_threads(12)
+torch.set_num_threads(int(os.environ.get("CLONE_THREADS") or os.cpu_count() or 4))
 jobs = json.load(open(sys.argv[1]))
 model = ChatterboxTTS.from_pretrained(device="cpu")
 for j in jobs:
