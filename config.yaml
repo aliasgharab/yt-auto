@@ -1,0 +1,33 @@
+# yt-auto channel config
+channel:
+  niche: >
+    Tech explainers: how computers, chips, networks, programming languages,
+    and everyday technology actually work under the hood. Accurate,
+    engineering-minded, no hype. Audience: curious students and developers.
+  voice_tone: "clear, confident, slightly playful; like a smart friend explaining at a whiteboard"
+
+llm:
+  backend: claude-cli        # headless Claude Code on your subscription; no API key
+  model: sonnet
+
+tts:
+  voice: am_michael          # try: am_michael, am_adam, bm_george, af_heart, bf_emma
+  speed: 1.08
+
+formats:
+  short:
+    size: [1080, 1920]
+    target_words: [110, 150]   # ~40-55 s
+    scenes: [5, 8]
+  long:
+    size: [1920, 1080]
+    target_words: [900, 1300]  # ~6-9 min
+    scenes: [14, 24]
+
+render:
+  fps: 30
+  font_dir: /home/aaab/.local/share/fonts/Inter      # Inter-{Regular,SemiBold,Bold,ExtraBold}.ttf
+  mono_font: /usr/share/fonts/cascadia-mono-nf-fonts/CascadiaMonoNF-Regular.otf
+  encoder: h264_nvenc        # falls back to libopenh264 automatically
+
+output_dir: out
