@@ -210,3 +210,20 @@ def test_cli_registers():
     yt.register(sub)
     assert ap.parse_args(["youtube-check"]).cmd == "youtube-check"
     assert yt.run("make") is False
+
+
+def test_parse_live_item_policy_fields():
+    from yt_auto.youtube import parse_live_item
+    r = parse_live_item({"id": "v", "statistics": {"viewCount": "12", "likeCount": "3", "commentCount": "1"},
+                         "status": {"privacyStatus": "public", "uploadStatus": "rejected", "rejectionReason": "copyright"},
+                         "contentDetails": {"regionRestriction": {"blocked": ["DE"]},
+                                            "contentRating": {"ytRating": "ytAgeRestricted"}}})
+    assert (r["views"], r["likes"], r["comments"]) == (12, 3, 1)
+    assert r["rejection_reason"] == "copyright" and r["blocked"] == ["DE"] and r["age_restricted"]
+
+
+def test_parse_deep():
+    from yt_auto.youtube import parse_deep
+    resp = {"columnHeaders": [{"name": n} for n in ["video", "views", "engagedViews", "averageViewPercentage"]],
+            "rows": [["v1", 100, 40, 72.5]]}
+    assert parse_deep(resp) == {"v1": {"views": 100.0, "engaged_views": 40.0, "avg_view_pct": 72.5}}

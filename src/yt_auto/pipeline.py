@@ -327,18 +327,41 @@ def preview(cfg: dict, job: Path) -> dict:
     return {"note": f"{where}: video at {job / 'video.mp4'}"}
 
 
-def _call_build(build, cfg, topic, **kw):
+def _call_build(build, cfg, topic, job=None, **kw):
     """Pass only the keyword arguments `build` accepts (older/fake builders lack `past`)."""
     import inspect
     params = inspect.signature(build).parameters
     if not any(p.kind == p.VAR_KEYWORD for p in params.values()):
         kw = {k: v for k, v in kw.items() if k in params}
-    return build(cfg, topic, None, **kw)
+    return build(cfg, topic, job, **kw)
+
+
+MAX_REQUEUES = 3   # a row that keeps failing transiently becomes Failed after this many nights
+
+
+def _tags(row: dict) -> list[str]:
+    return [t.strip() for t in (row.get("Alerts") or "").split(",") if t.strip()]
+
+
+def _with_tag(row: dict, tag: str, drop_prefix: str | None = None) -> str:
+    keep = [t for t in _tags(row) if not (drop_prefix and t.startswith(drop_prefix))]
+    return ", ".join(dict.fromkeys([*keep, tag]))
+
+
+def _requeues(row: dict) -> int:
+    return max((int(t.split(":")[1]) for t in _tags(row) if re.fullmatch(r"requeue:\d+", t)), default=0)
 
 
 def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=None,
-            past: list[str] | None = None) -> dict:
-    """Build one Short for `row`: Scripted -> Rendered -> (private preview upload) -> Needs Approval | Failed."""
+            past: list[str] | None = None, recent: list[dict] | None = None, sleep=None) -> dict:
+    """Build one Short for `row`: Scripted -> Rendered -> (private preview upload) -> Needs Approval | Failed.
+    Transient errors (network, HF download, Claude overload...) are retried; if they persist the row goes
+    back to Idea for the next night instead of Failed. Returns the row with "Status" and, on a build
+    exception, "_error": "transient" | "bug"."""
+    import time as _time
+
+    from . import heal
+    from .analytics import hook_pattern, script_text
     if build is None:
         from . import build_short as build
     topic = (row.get("Topic") or "").strip() or None
@@ -348,13 +371,23 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
         topic = f"{topic} (angle: {row['Idea Notes'].strip()})"
     rid = row["_id"]
 
-    def on_script(sc, job):
-        nc.update_row(rid, {"Status": "Scripted", "Title": sc["title"], "Job": job_ref(cfg, job),
-                            "Format": "short"})
+    made = {}
 
+    def on_script(sc, job):
+        made["job"] = job
+        vals = {"Status": "Scripted", "Title": sc["title"], "Job": job_ref(cfg, job), "Format": "short"}
+        if sc.get("lines"):
+            duo = cfg.get("duo") or {}
+            hook = sc["lines"][0].get("text", "")
+            vals.update({"Hook": hook, "Script": script_text(sc)[:1900],
+                         "Hook Pattern": hook_pattern(hook, tuple(x for x in (duo.get("asker"), duo.get("explainer")) if x))})
+        nc.update_row(rid, vals)
+
+    tries = int((cfg.get("heal") or {}).get("build_tries", 2))
     try:
-        job = _call_build(build, cfg, topic, guidance=guidance, feedback=feedback, on_script=on_script,
-                          past=past)
+        job = heal.retry(lambda: _call_build(build, cfg, topic, made.get("job"), guidance=guidance, feedback=feedback,
+                                             on_script=on_script, past=past, recent=recent),
+                         tries=tries, base=30, sleep=sleep or _time.sleep, what=f"build {topic or 'auto topic'}")
         meta = json.loads((job / "metadata.json").read_text())
         nc.update_row(rid, {"Status": "Rendered", "Job": job_ref(cfg, job),
                             "Duration (s)": meta.get("duration_s")})
@@ -394,20 +427,88 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
     except Exception as e:
         tb = traceback.format_exc()
         log.error("build failed for %r:\n%s", topic, tb)
+        n = _requeues(row) + 1
+        transient = heal.is_transient(e) and n <= MAX_REQUEUES
+        run = os.environ.get("GITHUB_RUN_ID")
+        if transient:
+            vals = {"Status": "Idea", "Alerts": _with_tag(row, f"requeue:{n}", "requeue:"),
+                    "QA Notes": f"Transient failure #{n}, back to Idea for the next night: {type(e).__name__}: {e}"[:1900]}
+        else:
+            vals = {"Status": "Failed", "QA": "fail", "QA Notes": f"{type(e).__name__}: {e}\n\n{tb[-1500:]}",
+                    "Alerts": _with_tag(row, f"run:{run}") if run else row.get("Alerts") or ""}
         try:
-            nc.update_row(rid, {"Status": "Failed", "QA": "fail",
-                                "QA Notes": f"{type(e).__name__}: {e}\n\n{tb[-1500:]}"})
+            nc.update_row(rid, vals)
         except Exception as e2:
-            log.error("could not mark row Failed: %s", e2)
-        notify.send("Short build failed", f"{topic or 'auto topic'}: {e}"[:400], click=row.get("_url"),
-                    tags=["x"])
-        return {**row, "Status": "Failed"}
+            log.error("could not update the failed row: %s", e2)
+        notify.send("Short build hit a network hiccup, retrying tomorrow" if transient else "Short build failed",
+                    f"{topic or 'auto topic'}: {e}"[:400], click=row.get("_url"), tags=["x"])
+        return {**row, **vals, "_error": "transient" if transient else "bug"}
+
+
+def _ensure_schema(nc) -> None:
+    from . import analytics
+    try:
+        analytics.ensure_schema(nc)
+    except Exception as e:
+        log.warning("could not add analytics columns to Notion: %s", e)
+
+
+def _cadence(cfg: dict, nc, configured: int) -> int:
+    """Apply the cadence rule (analytics.cadence); ntfy once when it first kicks in."""
+    from . import analytics
+    try:
+        rows = nc.query(["Scheduled", "Live"])
+        now = datetime.now(ZoneInfo(pcfg(cfg)["timezone"]))
+        n, why = analytics.cadence(rows, now, configured, analytics.acfg(cfg))
+    except Exception as e:
+        log.warning("cadence rule skipped: %s", e)
+        return configured
+    if why:
+        log.info("cadence: %s", why)
+        recent = [r for r in rows if analytics.parse_cps(r.get("Checkpoints")).get("7d")]
+        if recent and not any("cadence" in _tags(r) for r in recent[-14:]):
+            notify.send("yt-auto: slowing down to 1 Short a night", why, tags=["turtle"])
+            newest = recent[-1]
+            nc.update_row(newest["_id"], {"Alerts": _with_tag(newest, "cadence")})
+    return n
+
+
+def _recent_scripts(nc, n: int = 30) -> list[dict]:
+    try:
+        rows = nc.query(["Needs Approval", "Scheduled", "Live", "Rejected"])
+    except Exception as e:
+        log.warning("could not read recent scripts: %s", e)
+        return []
+    return [{"title": r.get("Title") or "", "text": r.get("Script") or ""} for r in rows if r.get("Title")][-n:]
+
+
+class BuildsFailed(RuntimeError):
+    """Nightly finished but builds failed: exit non-zero so the Actions run is red (and the doctor runs)."""
+
+
+def nightly_status(results: list[dict]) -> str | None:
+    """Why the nightly should exit non-zero, or None. Any bug-type build error counts; transient
+    errors only when nothing at all got built."""
+    if not results:
+        return None
+    bugs = [r for r in results if r.get("_error") == "bug"]
+    ok = [r for r in results if r.get("Status") not in ("Failed", "Idea")]
+    if bugs:
+        return f"{len(bugs)} of {len(results)} build(s) failed with an error: " + "; ".join(
+            str(r.get("Title") or r.get("Topic")) for r in bugs)
+    if not ok:
+        return f"all {len(results)} build(s) failed"
+    return None
 
 
 def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
-    count = count or pcfg(cfg)["shorts_per_night"]
-    ideas = nc.query("Idea")[:count]
+    _ensure_schema(nc)
+    count = count or _cadence(cfg, nc, pcfg(cfg)["shorts_per_night"])
+    queue = nc.query("Idea")
+    queue.sort(key=lambda r: r.get("Source") != "follow-up")   # winners' follow-ups first (stable sort)
+    ideas = queue[:count]
     guidance, feedback = _guidance(nc), _feedback(nc)
+    recent = _recent_scripts(nc)
     while len(ideas) < count:
         ideas.append(nc.create_row({"Title": "(auto topic, writing script...)", "Status": "Idea",
                                     "Source": "auto", "Format": "short"}))
@@ -416,35 +517,22 @@ def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
     except Exception as e:
         log.warning("could not read past titles: %s", e)
         past = []
-    results = [produce(cfg, nc, r, guidance, feedback, build, past) for r in ideas]
+    results = [produce(cfg, nc, r, guidance, feedback, build, past, recent) for r in ideas]
     publish(cfg, nc)
     return results
 
 
 # ---------------------------------------------------------------- weekly jobs
 
-def stats(cfg: dict, nc) -> int:
-    rows = [r for r in nc.query(["Scheduled", "Live"]) if r.get("Video ID")]
-    if not rows:
-        log.info("stats: no uploaded videos yet")
-        return 0
-    yt = _optional("youtube")
-    if yt is None or not yt.is_configured():
+def stats(cfg: dict, nc, due_only: bool = False) -> dict:
+    """Live analytics sweep (analytics.sweep): checkpoints, deep metrics, verdicts, follow-ups, alerts.
+    due_only: the 30-min publish cron; only touches YouTube when a checkpoint is due or every ~6 h."""
+    from . import analytics
+    yt = _youtube_ready()
+    if yt is None:
         log.warning("stats: YouTube not configured, skipping")
-        return 0
-    data = yt.fetch_stats([r["Video ID"] for r in rows])
-    now = datetime.now(ZoneInfo(pcfg(cfg)["timezone"]))
-    n = 0
-    for r in rows:
-        s = data.get(r["Video ID"])
-        if not s:
-            continue
-        nc.update_row(r["_id"], {"Views": s.get("views"), "Likes": s.get("likes"),
-                                 "Avg View %": s.get("avg_view_pct"), "Avg View (s)": s.get("avg_view_s"),
-                                 "Stats Updated": now})
-        n += 1
-    log.info("stats: updated %d row(s)", n)
-    return n
+        return {"ran": False}
+    return analytics.sweep(cfg, nc, yt, due_only=due_only)
 
 
 def research(cfg: dict, nc, n: int = 10) -> int:
@@ -469,7 +557,9 @@ def research(cfg: dict, nc, n: int = 10) -> int:
 
 
 ANALYZE_FIELDS = ["Title", "Topic", "Format", "Source", "QA", "Duration (s)", "Publish At", "Views", "Likes",
-                  "Avg View %", "Avg View (s)", "Stats Updated"]
+                  "Avg View %", "Avg View (s)", "Stats Updated", "Views 1h", "Views 24h", "Views 72h", "Views 7d",
+                  "Engaged Views", "Shares", "Subs Gained", "Comments", "Verdict", "Ratio 72h", "Hook",
+                  "Hook Pattern", "Hook Check", "Series", "Script"]
 
 
 def analyze(cfg: dict, nc) -> bool:
@@ -481,18 +571,44 @@ def analyze(cfg: dict, nc) -> bool:
     if agents is None or not hasattr(agents, "analyze"):
         log.warning("analyze: agents module unavailable")
         return False
+    from . import analytics
     clean = [{k: (v.isoformat() if isinstance(v, (date, datetime)) else v) for k, v in r.items()
               if k in ANALYZE_FIELDS} for r in rows]
-    text = agents.analyze(cfg, clean, _guidance(nc))
+    a = analytics.acfg(cfg)
+    current, _ = analytics.split_board(_guidance(nc))
+    board = analytics.scoreboard(sorted(rows, key=lambda r: analytics.published_at(r) or datetime.min.astimezone()), a)
+    text = agents.analyze(cfg, clean, current, board)
     if not (text or "").strip():
         log.warning("analyze: empty result, What Works page left unchanged")
         return False
-    nc.replace_page_text(text)
+    nc.replace_page_text(analytics.merge_board(text, board))
     log.info("analyze: What Works page updated from %d row(s)", len(rows))
     return True
 
 
+def requeue(cfg: dict, nc, run_id: str | None = None) -> int:
+    """Failed rows (only those tagged by CI run `run_id`, if given) -> Idea. Used after a doctor fix."""
+    n = 0
+    for r in nc.query("Failed"):
+        if run_id and f"run:{run_id}" not in _tags(r):
+            continue
+        nc.update_row(r["_id"], {"Status": "Idea", "QA": None,
+                                 "QA Notes": f"Re-queued after a fix (run {run_id or 'manual'})."})
+        n += 1
+    log.info("requeue: %d row(s) back to Idea", n)
+    print(n)
+    return n
+
+
 # ---------------------------------------------------------------- CLI
+
+def _nightly_cli(cfg: dict, nc, count: int | None) -> list[dict]:
+    results = nightly(cfg, nc, count)
+    why = nightly_status(results)
+    if why:
+        raise BuildsFailed(why)
+    return results
+
 
 def _run(name: str, fn, locked: bool):
     def handler(args, cfg) -> int:
@@ -502,6 +618,9 @@ def _run(name: str, fn, locked: bool):
                     nc = _client()
                     fn(args, cfg, nc)
                 return 0
+            except BuildsFailed as e:   # rows + pushes are already done; just make the run red
+                log.error("%s: %s", name, e)
+                return 1
             except Locked as e:
                 log.info("%s skipped: %s", name, e)
                 return 0
@@ -515,13 +634,18 @@ def _run(name: str, fn, locked: bool):
 def register(sub) -> None:
     p = sub.add_parser("nightly", help="build Shorts from Notion ideas -> QA -> Needs Approval, then publish")
     p.add_argument("--count", type=int, default=None, help="Shorts to build (default publish.shorts_per_night)")
-    p.set_defaults(func=_run("nightly", lambda a, c, nc: nightly(c, nc, a.count), locked=True))
+    p.set_defaults(func=_run("nightly", lambda a, c, nc: _nightly_cli(c, nc, a.count), locked=True))
 
     p = sub.add_parser("publish", help="upload approved rows, mark rejected, flip Scheduled -> Live")
     p.set_defaults(func=_run("publish", lambda a, c, nc: publish(c, nc), locked=True))
 
-    p = sub.add_parser("stats", help="refresh YouTube stats on Scheduled/Live rows")
-    p.set_defaults(func=_run("stats", lambda a, c, nc: stats(c, nc), locked=False))
+    p = sub.add_parser("stats", help="analytics sweep: checkpoints, deep metrics, verdicts, alerts")
+    p.add_argument("--due", action="store_true", help="only if a checkpoint is due or the last sweep is ~6 h old")
+    p.set_defaults(func=_run("stats", lambda a, c, nc: stats(c, nc, a.due), locked=False))
+
+    p = sub.add_parser("requeue", help="Failed rows -> Idea (after a fix)")
+    p.add_argument("--run", default=None, help="only rows failed by this GitHub Actions run id")
+    p.set_defaults(func=_run("requeue", lambda a, c, nc: requeue(c, nc, a.run), locked=False))
 
     p = sub.add_parser("research", help="researcher agent -> new Idea rows")
     p.add_argument("--n", type=int, default=10)

@@ -88,3 +88,18 @@ publish:
   min_lead_hours: 1           # never schedule closer than this to "now"
   auto_approve: false         # true: nightly ticks Approve itself when QA passes (zero-intervention mode)
   shorts_per_night: 2
+
+# Live analytics + reaction (yt-auto stats; see src/yt_auto/analytics.py for all keys + defaults)
+analytics:
+  sweep_hours: 6             # full refresh cadence (the 30-min publish cron also catches 1h/6h/24h/72h/7d checkpoints)
+  winner_ratio: 1.5          # 72 h views vs rolling median of the last 20 Shorts
+  loser_ratio: 0.3
+  max_followups: 3           # per series
+  hook_min_view_pct: 60      # day-4 hook check
+  hook_min_engaged_ratio: 0.5
+  cadence_floor_views: 100   # 7-day median under this for 2 weeks -> 1 Short/night
+  similarity_threshold: 0.85 # policy guard vs the last 30 titles/scripts
+
+# Self-healing
+heal:
+  build_tries: 2             # attempts per Short on transient errors (then the row goes back to Idea)

@@ -310,6 +310,20 @@ class Notion:
         page = self.request("PATCH", f"/pages/{page_id}", {"properties": to_props(values)})
         return from_page(page)
 
+    def ensure_props(self, props: dict[str, str]) -> list[str]:
+        """Add missing database columns {name: type} (number / rich_text / select / checkbox / date / url).
+        Existing columns are never changed. Returns the names added."""
+        PROPS.update({k: v for k, v in props.items() if k not in PROPS})
+        if getattr(self, "_ensured", None) is not None and set(props) <= self._ensured:
+            return []
+        have = set(self.request("GET", f"/databases/{self.database_id}").get("properties", {}))
+        missing = {k: {t: {}} for k, t in props.items() if k not in have}
+        if missing:
+            self.request("PATCH", f"/databases/{self.database_id}", {"properties": missing})
+            log.info("Notion: added columns %s", ", ".join(missing))
+        self._ensured = have | set(props)
+        return list(missing)
+
     def check(self) -> dict:
         """One real read; raises NotionNotConnected with instructions if the integration lacks access."""
         return self.request("GET", f"/databases/{self.database_id}")

@@ -356,12 +356,82 @@ def fetch_stats(video_ids: list[str]) -> dict[str, dict]:
     return out
 
 
-def _analytics_query(an, filters: str | None, max_results: int) -> dict:
+def parse_live_item(item: dict) -> dict:
+    s, st, cd = item.get("statistics", {}), item.get("status", {}), item.get("contentDetails", {})
+    return {
+        "found": True,
+        "views": _int(s.get("viewCount")), "likes": _int(s.get("likeCount")),
+        "comments": _int(s.get("commentCount")),
+        "privacy": st.get("privacyStatus"), "upload_status": st.get("uploadStatus"),
+        "rejection_reason": st.get("rejectionReason"), "failure_reason": st.get("failureReason"),
+        "blocked": list((cd.get("regionRestriction") or {}).get("blocked") or []),
+        "age_restricted": (cd.get("contentRating") or {}).get("ytRating") == "ytAgeRestricted",
+        "published_at": item.get("snippet", {}).get("publishedAt"),
+    }
+
+
+def fetch_live(video_ids: list[str]) -> dict[str, dict]:
+    """Statistics + status + policy signals, 50 ids per videos.list call (1 quota unit each).
+    Ids missing from the response map to {"found": False} (removed / deleted)."""
+    ids = list(dict.fromkeys(v for v in video_ids if v))
+    out = {v: {"found": False} for v in ids}
+    yt = _youtube()
+    for batch in _chunks(ids, 50):
+        resp = _with_retry(lambda: yt.videos().list(part="statistics,status,contentDetails,snippet",
+                                                    id=",".join(batch), maxResults=50).execute())
+        for item in resp.get("items", []):
+            if item.get("id") in out:
+                out[item["id"]] = parse_live_item(item)
+    return out
+
+
+DEEP_METRICS = ["views", "engagedViews", "averageViewDuration", "averageViewPercentage", "shares",
+                "subscribersGained"]
+_DEEP_KEYS = {"views": "views", "engagedViews": "engaged_views", "averageViewDuration": "avg_view_s",
+              "averageViewPercentage": "avg_view_pct", "shares": "shares", "subscribersGained": "subs_gained"}
+
+
+def parse_deep(resp: dict) -> dict[str, dict]:
+    cols = [h["name"] for h in resp.get("columnHeaders", [])]
+    out = {}
+    for row in resp.get("rows") or []:
+        r = dict(zip(cols, row))
+        if r.get("video"):
+            out[r["video"]] = {_DEEP_KEYS[k]: (float(v) if v is not None else None)
+                               for k, v in r.items() if k in _DEEP_KEYS}
+    return out
+
+
+def fetch_deep(video_ids: list[str]) -> dict[str, dict]:
+    """YouTube Analytics v2 lifetime metrics per video (lags 48-72 h). If the API rejects
+    engagedViews for this report, retries without it."""
+    ids = list(dict.fromkeys(v for v in video_ids if v))
+    if not ids:
+        return {}
+    from googleapiclient.errors import HttpError
+    an, out = _analytics(), {}
+    for batch in _chunks(ids, 200):
+        metrics = list(DEEP_METRICS)
+        while True:
+            try:
+                resp = _analytics_query(an, "video==" + ",".join(batch), len(batch), ",".join(metrics))
+                break
+            except HttpError as e:
+                if e.resp.status == 400 and "engagedViews" in metrics:
+                    metrics.remove("engagedViews")
+                    continue
+                raise
+        out.update(parse_deep(resp))
+    return out
+
+
+def _analytics_query(an, filters: str | None, max_results: int,
+                     metrics: str = "views,averageViewDuration,averageViewPercentage") -> dict:
     kw = dict(
         ids="channel==MINE",
         startDate="2005-02-14",
         endDate=date.today().isoformat(),
-        metrics="views,averageViewDuration,averageViewPercentage",
+        metrics=metrics,
         dimensions="video",
         sort="-views",            # top-videos reports require a descending views/minutes sort
         maxResults=max_results,   # <= 200

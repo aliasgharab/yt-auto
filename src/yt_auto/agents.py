@@ -476,7 +476,20 @@ def qa_review(cfg: dict, job: Path) -> dict:
 # ============================================================================ 4. analytics
 ANALYZE_SCHEMA = {"type": "object", "required": ["guidance_markdown"],
                   "properties": {"guidance_markdown": {"type": "string"}}}
-_ROW_KEYS = ["title", "topic", "duration_s", "views", "likes", "avg_view_pct", "avg_view_s", "publish_at"]
+_ROW_KEYS = ["title", "topic", "duration_s", "views", "likes", "avg_view_pct", "avg_view_s", "publish_at",
+             "views_1h", "views_24h", "views_72h", "views_7d", "engaged_views", "shares", "subs_gained", "comments",
+             "verdict", "ratio_72h", "hook_pattern", "hook_check", "series", "hook"]
+# Notion column -> analyst key
+_NOTION_KEYS = {"Title": "title", "Topic": "topic", "Duration (s)": "duration_s", "Views": "views", "Likes": "likes",
+                "Avg View %": "avg_view_pct", "Avg View (s)": "avg_view_s", "Publish At": "publish_at",
+                "Views 1h": "views_1h", "Views 24h": "views_24h", "Views 72h": "views_72h", "Views 7d": "views_7d",
+                "Engaged Views": "engaged_views", "Shares": "shares", "Subs Gained": "subs_gained",
+                "Comments": "comments", "Verdict": "verdict", "Ratio 72h": "ratio_72h", "Hook Pattern": "hook_pattern",
+                "Hook Check": "hook_check", "Series": "series", "Hook": "hook", "Script": "script"}
+
+
+def _keys(r: dict) -> dict:
+    return {_NOTION_KEYS.get(k, k): v for k, v in r.items()}
 
 
 def _has_stats(r: dict) -> bool:
@@ -485,6 +498,7 @@ def _has_stats(r: dict) -> bool:
 
 def format_rows(rows: list[dict]) -> str:
     out = []
+    rows = [_keys(r) for r in rows]
     for r in sorted(rows, key=lambda r: str(r.get("publish_at") or "")):
         head = " | ".join(f"{k}={r.get(k)}" for k in _ROW_KEYS if r.get(k) is not None)
         txt = " ".join(str(r.get("script") or r.get("script_text") or "").split())[:600]
@@ -492,8 +506,9 @@ def format_rows(rows: list[dict]) -> str:
     return "\n".join(out)
 
 
-def analyze(cfg: dict, rows: list[dict], current_guidance: str) -> str:
-    """Performance rows -> concise markdown "What works" guidance for the writer."""
+def analyze(cfg: dict, rows: list[dict], current_guidance: str, signals: str = "") -> str:
+    """Performance rows (+ the deterministic scoreboard) -> concise markdown "What works" guidance."""
+    rows = [_keys(r) for r in rows]
     with_stats = sum(1 for r in rows if _has_stats(r))
     small = ("FEWER THAN 5 VIDEOS HAVE STATS. This is far too little data for conclusions: say so in one "
              "line at the top, keep the current guidance almost unchanged, and add at most one or two "
@@ -501,7 +516,8 @@ def analyze(cfg: dict, rows: list[dict], current_guidance: str) -> str:
     duo = cfg["duo"]
     prompt = load_prompt("analyze", A=duo["asker"], B=duo["explainer"], videos_with_stats=with_stats,
                          videos_total=len(rows), small_sample_note=small, rows=format_rows(rows) or "(none)",
-                         current=current_guidance.strip() or "(empty)")
+                         current=current_guidance.strip() or "(empty)",
+                         signals=(signals or "").strip() or "(none yet)")
     return _claude(prompt, cfg, ANALYZE_SCHEMA)["guidance_markdown"].strip()
 
 

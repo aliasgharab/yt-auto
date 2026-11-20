@@ -10,23 +10,26 @@ name: yt-auto
 
 on:
   schedule:
+    - cron: "15 7 * * *"     # preflight  02:15 Toronto (EST): Chatterbox + Notion/YouTube/Claude logins
     - cron: "30 7 * * *"     # nightly    02:30 Toronto (EST)
-    - cron: "*/30 * * * *"   # publish    every 30 min
+    - cron: "*/30 * * * *"   # publish    every 30 min (+ stats sweep when a checkpoint is due / every 6 h)
     - cron: "0 15 * * 0"     # weekly     Sun 10:00 Toronto: research, stats, analyze
   workflow_dispatch:
     inputs:
       task:
         description: what to run
         type: choice
-        options: [nightly, publish, weekly]
+        options: [nightly, publish, weekly, preflight]
         default: publish
       count:
         description: Shorts to build (nightly only; blank = config default)
         required: false
         default: ""
 
+# publish (every 30 min) gets its own group: sharing one with the nightly let a queued publish cancel the
+# pending nightly (a group keeps only ONE pending run). preflight + nightly share "build" (preflight first).
 concurrency:
-  group: yt-auto-${{ github.event.schedule == '0 15 * * 0' && 'weekly' || 'board' }}
+  group: yt-auto-${{ (github.event.schedule == '0 15 * * 0' || inputs.task == 'weekly') && 'weekly' || ((github.event.schedule == '*/30 * * * *' || inputs.task == 'publish') && 'board' || 'build') }}
   cancel-in-progress: false
 
 permissions:
@@ -37,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      TASK: ${{ inputs.task || (github.event.schedule == '30 7 * * *' && 'nightly') || (github.event.schedule == '0 15 * * 0' && 'weekly') || 'publish' }}
+      TASK: ${{ inputs.task || (github.event.schedule == '30 7 * * *' && 'nightly') || (github.event.schedule == '15 7 * * *' && 'preflight') || (github.event.schedule == '0 15 * * 0' && 'weekly') || 'publish' }}
       YT_AUTO_CONFIG_DIR: ${{ github.workspace }}/.ci-config
       PYTHONUNBUFFERED: "1"
       NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
@@ -83,7 +86,7 @@ jobs:
         run: deploy/ci/fetch_assets.sh
 
       - name: Model cache (whisper, Chatterbox)
-        if: env.TASK == 'nightly'
+        if: env.TASK == 'nightly' || env.TASK == 'preflight'
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
@@ -91,14 +94,21 @@ jobs:
           restore-keys: hf-
 
       - name: Chatterbox clone venv (CPU torch)
-        if: env.TASK == 'nightly'
+        if: env.TASK == 'nightly' || env.TASK == 'preflight'
         run: |
           uv venv -p 3.11 tools/clone/.venv
-          uv pip install -p tools/clone/.venv/bin/python --index-strategy unsafe-best-match \
-            --extra-index-url https://download.pytorch.org/whl/cpu \
-            torch==2.6.0 torchaudio==2.6.0 chatterbox-tts==0.1.7 "setuptools<81"
+          for i in 1 2 3; do   # transient PyPI / download hiccups: retry with backoff
+            uv pip install -p tools/clone/.venv/bin/python --index-strategy unsafe-best-match \
+              --extra-index-url https://download.pytorch.org/whl/cpu \
+              torch==2.6.0 torchaudio==2.6.0 chatterbox-tts==0.1.7 "setuptools<81" && break
+            [ $i = 3 ] && exit 1; sleep $((i * 20))
+          done
 
       # ---- run
+      - name: preflight
+        if: env.TASK == 'preflight'
+        run: uv run yt-auto preflight
+
       - name: nightly
         if: env.TASK == 'nightly'
         run: uv run yt-auto nightly ${{ inputs.count && format('--count {0}', inputs.count) || '' }}
@@ -106,6 +116,11 @@ jobs:
       - name: publish
         if: env.TASK == 'publish'
         run: uv run yt-auto publish
+
+      - name: stats sweep (only when a checkpoint is due or every ~6 h; ~1 quota unit per 50 videos)
+        if: env.TASK == 'publish'
+        continue-on-error: true
+        run: uv run yt-auto stats --due
 
       - name: weekly
         if: env.TASK == 'weekly'

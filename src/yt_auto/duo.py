@@ -170,7 +170,12 @@ def _clone_lines(sc, cfg, job: Path) -> list[np.ndarray]:
         jf = vdir / "jobs.json"
         jf.write_text(json.dumps(jobs))
         py = root / "tools/clone/.venv/bin/python"
-        subprocess.run([str(py), str(root / "tools/clone/clone_tts.py"), str(jf)], check=True)
+        res = subprocess.run([str(py), str(root / "tools/clone/clone_tts.py"), str(jf)],
+                             stderr=subprocess.PIPE, text=True)
+        if res.stderr:
+            print(res.stderr[-3000:], flush=True)
+        if res.returncode != 0:   # stderr tail in the message lets heal.is_transient spot HF/network errors
+            raise RuntimeError(f"Chatterbox clone failed (rc {res.returncode}): {res.stderr[-1500:]}")
     res = []
     for o in outs:
         a, sr = sf.read(o, dtype="float32")

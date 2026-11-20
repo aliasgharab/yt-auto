@@ -105,10 +105,36 @@ def _write_duo_script(cfg: dict, topic, past, guidance: str = "", feedback: list
     return duo.write_script(cfg, topic, past, **kw)
 
 
+def write_unique_script(cfg: dict, topic, past, guidance: str = "", feedback: list[str] | None = None,
+                        recent: list[dict] | None = None, write=None) -> dict:
+    """Writer + editor, then the policy guard (YouTube "inauthentic content"): a script too similar to
+    one of the last N titles/scripts is regenerated with that feedback; after 3 tries it raises."""
+    from .analytics import acfg, script_text, too_similar
+
+    a = acfg(cfg)
+    write = write or _write_duo_script
+    recent = (recent or [])[-a["similarity_window"]:]
+    fb = list(feedback or [])
+    for attempt in range(3):
+        sc = write(cfg, topic, past, guidance, fb)
+        hit = too_similar(sc.get("title", ""), script_text(sc), recent, a["similarity_threshold"])
+        if not hit:
+            sc["similarity_tries"] = attempt + 1
+            return sc
+        print(f"  policy guard: {hit[0]:.2f} similar to {hit[1]!r}, rewriting", flush=True)
+        fb.append(f"POLICY GUARD: your last draft ({sc.get('title')!r}) was {hit[0]:.0%} similar to our existing "
+                  f"video {hit[1]!r}. Repetitive videos break YouTube's inauthentic-content rule: choose a clearly "
+                  "different subtopic, title and wording.")
+    raise RuntimeError(f"policy guard: 3 drafts were all >= {a['similarity_threshold']} similar to existing videos "
+                       f"(last: {hit[1]!r}, {hit[0]:.2f})")
+
+
 def build_short(cfg: dict, topic: str | None = None, job: Path | None = None, guidance: str = "",
-                feedback: list[str] | None = None, on_script=None, past: list[str] | None = None) -> Path:
+                feedback: list[str] | None = None, on_script=None, past: list[str] | None = None,
+                recent: list[dict] | None = None) -> Path:
     """Two-character dialogue Short over gameplay. on_script(sc, job) is called once the script exists.
-    past: titles already made (e.g. from Notion); merged with the titles found in out/."""
+    past: titles already made (e.g. from Notion); merged with the titles found in out/.
+    recent: [{"title", "text"}] of recent videos for the similarity guard (merged with out/)."""
     from . import duo
 
     out_root = cfg["_root"] / cfg["output_dir"]
@@ -117,9 +143,11 @@ def build_short(cfg: dict, topic: str | None = None, job: Path | None = None, gu
         sc = json.loads((job / "script.json").read_text())
     else:
         t0 = _stage("dialogue script + edit pass (claude -p)")
-        local = [json.loads(p.read_text())["title"] for p in out_root.glob("*/script.json")]
-        past = list(dict.fromkeys([*(past or []), *local]))
-        sc = _write_duo_script(cfg, topic, past, guidance, feedback)
+        from .analytics import script_text
+        local = [json.loads(p.read_text()) for p in sorted(out_root.glob("*/script.json"))]
+        past = list(dict.fromkeys([*(past or []), *(x["title"] for x in local)]))
+        recent = [*(recent or []), *({"title": x["title"], "text": script_text(x)} for x in local if "lines" in x)]
+        sc = write_unique_script(cfg, topic, past, guidance, feedback, recent)
         _done(t0)
         job = job or out_root / f"{date.today():%Y%m%d}-{_slug(sc['title'])}-short"
         job.mkdir(parents=True, exist_ok=True)
@@ -151,7 +179,8 @@ def main():
     mk.add_argument("--format", choices=["short", "long"], default="short")
     mk.add_argument("--topic")
     mk.add_argument("--from", dest="job", type=Path, help="existing job dir to rebuild")
-    from . import agents, pipeline, youtube
+    from . import agents, heal, pipeline, youtube
+    heal.register(sub)
     youtube.register(sub)
     pipeline.register(sub)
     agents.register(sub)
