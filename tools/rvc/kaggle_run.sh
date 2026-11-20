@@ -15,7 +15,7 @@ DS="$USER_K/yt-auto-voices"
 KERNEL="$USER_K/yt-auto-rvc-train"
 WORK="${TMPDIR:-/tmp}/yt-auto-kaggle"; mkdir -p "$WORK"
 
-status() { "$K" kernels status "$KERNEL" 2>&1 | tail -1; }
+status() { "$K" kernels status "$KERNEL" 2>&1 | tail -1 | tr "[:upper:]" "[:lower:]"; }
 
 fetch() {
   rm -rf "$WORK/out" && mkdir -p "$WORK/out"
