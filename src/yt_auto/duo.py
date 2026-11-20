@@ -299,7 +299,30 @@ def composite(timing, cfg, job: Path, ass: Path):
     subprocess.run(cmd, check=True)
 
 
+# Heavy local jobs that must not overlap a render (they fight for CPU/VRAM: both ran ~10x slower).
+HEAVY_PATTERNS = ["Applio/core.py train", "rvc/train/train.py"]
+
+
+def wait_for_heavy_jobs(cfg: dict, poll_s: int = 60) -> None:
+    """Block until no voice-model training is running (no-op on CI). Max wait: duo.max_wait_hours."""
+    import time
+    max_h = cfg.get("duo", {}).get("max_wait_hours", 12)
+    t0 = time.time()
+    while True:
+        busy = [p for p in HEAVY_PATTERNS
+                if subprocess.run(["pgrep", "-f", p], capture_output=True).returncode == 0]
+        if not busy:
+            return
+        waited = (time.time() - t0) / 3600
+        if waited > max_h:
+            raise RuntimeError(f"gave up after {max_h} h waiting for {busy} to finish")
+        if int(time.time() - t0) % 600 < poll_s:
+            print(f"[duo] waiting for {busy[0]} to finish before rendering ({waited:.1f} h so far)", flush=True)
+        time.sleep(poll_s)
+
+
 def build_audio_and_video(sc: dict, cfg: dict, job: Path):
+    wait_for_heavy_jobs(cfg)
     timing = voice_lines(sc, cfg, job)
     (job / "timing.json").write_text(json.dumps(timing, indent=1, ensure_ascii=False))
     words = captions.line_word_timings(
