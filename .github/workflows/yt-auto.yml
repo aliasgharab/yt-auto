@@ -20,6 +20,10 @@ on:
         type: choice
         options: [nightly, publish, weekly]
         default: publish
+      count:
+        description: Shorts to build (nightly only; blank = config default)
+        required: false
+        default: ""
 
 concurrency:
   group: yt-auto-${{ github.event.schedule == '0 15 * * 0' && 'weekly' || 'board' }}
@@ -97,7 +101,7 @@ jobs:
       # ---- run
       - name: nightly
         if: env.TASK == 'nightly'
-        run: uv run yt-auto nightly
+        run: uv run yt-auto nightly ${{ inputs.count && format('--count {0}', inputs.count) || '' }}
 
       - name: publish
         if: env.TASK == 'publish'
