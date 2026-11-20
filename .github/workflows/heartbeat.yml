@@ -1,0 +1,62 @@
+# Cron-free fallback: GitHub's `schedule` trigger never fired for yt-auto.yml (checked 2026-11-20 03:00-07:36Z,
+# also after a re-registering push). This job lives on a runner, dispatches the yt-auto tasks at their times,
+# and re-dispatches itself every ~5 h (jobs max out at 6 h). If native cron runs show up, it stays quiet.
+#
+# Start / restart the chain:  gh workflow run heartbeat.yml -R <owner>/yt-auto
+# Stop it:                    gh workflow disable heartbeat.yml -R <owner>/yt-auto   (then cancel the running one)
+name: heartbeat
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7 */6 * * *"   # restarts a broken chain, if GitHub cron ever works
+
+concurrency:
+  group: heartbeat           # one chain; a newer pending run replaces an older pending one
+  cancel-in-progress: false
+
+permissions:
+  actions: write             # gh workflow run (workflow_dispatch is allowed with GITHUB_TOKEN)
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ github.token }}
+      R: ${{ github.repository }}
+    steps:
+      - name: Dispatch yt-auto tasks on time, then hand over to the next heartbeat
+        run: |
+          start=$(date +%s)
+          native_cron_alive() {   # a schedule-event yt-auto run in the last 45 min => real cron works
+            gh run list -R "$R" -w yt-auto.yml -L 20 --json event,createdAt \
+              --jq "[.[] | select(.event == \"schedule\" and (.createdAt | fromdateiso8601) > (now - 2700))] | length" \
+              2>/dev/null | grep -qv '^0$'
+          }
+          go() {
+            if native_cron_alive; then echo "$(date -u +%H:%M) native cron alive, skipping $1"; return; fi
+            for i in 1 2 3; do
+              gh workflow run yt-auto.yml -R "$R" --ref main -f task="$1" && { echo "$(date -u +%H:%M) dispatched $1"; return; }
+              sleep 20
+            done
+            echo "::warning::could not dispatch $1"
+          }
+          while :; do
+            # sleep to the next quarter hour
+            now=$(date +%s); sleep $(( 900 - now % 900 + 5 ))
+            hm=$(date -u +%H:%M); dow=$(date -u +%u)   # 7 = Sunday
+            case "$hm" in
+              07:15) go preflight ;;
+              07:30) go nightly ;;
+              15:00) [ "$dow" = 7 ] && go weekly || go publish ;;
+              *:00|*:30) go publish ;;
+            esac
+            # hand over after ~5 h, at a :45 tick, away from the 07:xx and Sunday 15:xx jobs
+            if [ $(( $(date +%s) - start )) -gt 18000 ] && [ "${hm#*:}" = 45 ] \
+               && [ "${hm%:*}" != 06 ] && [ "${hm%:*}" != 07 ] && ! { [ "$dow" = 7 ] && [ "${hm%:*}" = 14 ]; }; then
+              break
+            fi
+          done
+          gh workflow run heartbeat.yml -R "$R" --ref main && echo "next heartbeat dispatched"
