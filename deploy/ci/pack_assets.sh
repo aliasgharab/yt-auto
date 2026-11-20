@@ -16,6 +16,9 @@ tar --zstd -cf dist/assets-core.tar.zst models/kokoro-v1.0.onnx models/voices-v1
 tar -cf dist/assets-gameplay.tar "${clips[@]}"          # mp4 is already compressed
 ls -lh dist/assets-*
 gh repo view "$repo" >/dev/null 2>&1 || gh repo create "$repo" --private -d "yt-auto binary assets (CI only)"
+# a release needs at least one commit: seed an empty repo with a README
+gh api "repos/$repo/commits?per_page=1" >/dev/null 2>&1 || gh api -X PUT "repos/$repo/contents/README.md" \
+    -f message=init -f content="$(echo 'yt-auto CI assets' | base64 -w0)" >/dev/null
 gh release view assets -R "$repo" >/dev/null 2>&1 || gh release create assets -R "$repo" -t assets -n "CI assets"
 gh release upload assets -R "$repo" --clobber dist/assets-core.tar.zst dist/assets-gameplay.tar
 echo "uploaded to $repo release 'assets'"
