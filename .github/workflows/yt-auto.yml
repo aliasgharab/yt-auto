@@ -1,0 +1,125 @@
+# yt-auto on GitHub Actions (public repo => standard runners are free).
+# Notion is the source of truth; runners are ephemeral. Renders are uploaded to YouTube as PRIVATE previews
+# right after rendering; approving in Notion makes `publish` set publishAt (no re-upload).
+#
+# Secrets: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), NOTION_JSON (~/.config/yt-auto/notion.json),
+#          YOUTUBE_CLIENT_SECRET, YOUTUBE_TOKEN (client_secret.json / youtube_token.json), NTFY_TOPIC,
+#          ASSETS_TOKEN (fine-grained PAT: Contents read-only on the private yt-auto-assets repo)
+# Variables (optional): ASSETS_REPO (default <owner>/yt-auto-assets)
+name: yt-auto
+
+on:
+  schedule:
+    - cron: "30 7 * * *"     # nightly    02:30 Toronto (EST)
+    - cron: "*/30 * * * *"   # publish    every 30 min
+    - cron: "0 15 * * 0"     # weekly     Sun 10:00 Toronto: research, stats, analyze
+  workflow_dispatch:
+    inputs:
+      task:
+        description: what to run
+        type: choice
+        options: [nightly, publish, weekly]
+        default: publish
+
+concurrency:
+  group: yt-auto-${{ github.event.schedule == '0 15 * * 0' && 'weekly' || 'board' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      TASK: ${{ inputs.task || (github.event.schedule == '30 7 * * *' && 'nightly') || (github.event.schedule == '0 15 * * 0' && 'weekly') || 'publish' }}
+      YT_AUTO_CONFIG_DIR: ${{ github.workspace }}/.ci-config
+      PYTHONUNBUFFERED: "1"
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Python deps
+        run: uv sync --frozen
+
+      - name: Credentials
+        env:
+          NOTION_JSON: ${{ secrets.NOTION_JSON }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_TOKEN: ${{ secrets.YOUTUBE_TOKEN }}
+        run: |
+          umask 077
+          mkdir -p "$YT_AUTO_CONFIG_DIR"
+          printf '%s' "$NOTION_JSON" > "$YT_AUTO_CONFIG_DIR/notion.json"
+          if [ -n "$YOUTUBE_TOKEN" ]; then
+            printf '%s' "$YOUTUBE_CLIENT_SECRET" > "$YT_AUTO_CONFIG_DIR/client_secret.json"
+            printf '%s' "$YOUTUBE_TOKEN" > "$YT_AUTO_CONFIG_DIR/youtube_token.json"
+          fi
+
+      # ---- heavy setup: only the nightly render and the weekly agents need these
+      - name: Claude Code CLI
+        if: env.TASK != 'publish'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: ffmpeg
+        if: env.TASK == 'nightly'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg zstd fontconfig
+
+      - name: Assets (private release)
+        if: env.TASK == 'nightly'
+        env:
+          GH_TOKEN: ${{ secrets.ASSETS_TOKEN }}
+          ASSETS_REPO: ${{ vars.ASSETS_REPO || format('{0}/yt-auto-assets', github.repository_owner) }}
+        run: deploy/ci/fetch_assets.sh
+
+      - name: Model cache (whisper, Chatterbox)
+        if: env.TASK == 'nightly'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('config.yaml') }}
+          restore-keys: hf-
+
+      - name: Chatterbox clone venv (CPU torch)
+        if: env.TASK == 'nightly'
+        run: |
+          uv venv -p 3.11 tools/clone/.venv
+          uv pip install -p tools/clone/.venv/bin/python --index-strategy unsafe-best-match \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            torch==2.6.0 torchaudio==2.6.0 chatterbox-tts==0.1.7
+
+      # ---- run
+      - name: nightly
+        if: env.TASK == 'nightly'
+        run: uv run yt-auto nightly
+
+      - name: publish
+        if: env.TASK == 'publish'
+        run: uv run yt-auto publish
+
+      - name: weekly
+        if: env.TASK == 'weekly'
+        run: |
+          uv run yt-auto research || true
+          uv run yt-auto stats || true
+          uv run yt-auto analyze
+
+      # previews whose YouTube upload failed are kept here for 7 days (see pipeline._fallback)
+      - name: Video artifacts
+        if: always() && env.TASK == 'nightly'
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos
+          path: out/artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Wipe credentials
+        if: always()
+        run: rm -rf "$YT_AUTO_CONFIG_DIR"

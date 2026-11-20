@@ -7,3 +7,6 @@ assets/gameplay/
 assets/characters/raw/
 assets/characters/
 assets/voices/
+dist/
+/fonts/
+.ci-config/
