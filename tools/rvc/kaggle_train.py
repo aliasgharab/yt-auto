@@ -16,7 +16,7 @@ import sys
 CHARS = {"hiro": 300, "baymax": 500}   # character -> epochs (smaller dataset => more epochs)
 BATCH = 8                               # T4 16 GB handles 8-16
 SR = 40000
-DATA = next(iter(glob.glob("/kaggle/input/*/clean")), "/kaggle/input/yt-auto-voices/clean")
+DATA = next(iter(sorted(glob.glob("/kaggle/input/**/clean", recursive=True))), "/kaggle/input/yt-auto-voices/clean")
 WORK = "/kaggle/working"
 APPLIO = f"{WORK}/Applio"
 OUT = f"{WORK}/rvc"

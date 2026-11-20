@@ -21,7 +21,7 @@ if [ ! -f "logs/$CHAR/.yt_extracted" ]; then
 fi
 echo "== $(date -Is) train"
 "$PY" core.py train --model-name "$CHAR" --vocoder HiFi-GAN --sample-rate $SR --batch-size "$BATCH" \
-    --total-epoch "$EPOCHS" --save-every-epoch 25 --save-only-latest --pretrained \
+    --total-epoch "$EPOCHS" --save-every-epoch 10 --save-only-latest --pretrained \
     ${GPU:+--gpu "$GPU"} --index-algorithm Auto
 "$PY" core.py index --model-name "$CHAR" --index-algorithm Auto
 W="$(command ls -t logs/$CHAR/${CHAR}_*e_*s.pth | head -1)"
