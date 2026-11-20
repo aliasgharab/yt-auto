@@ -17,11 +17,13 @@ import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from .config import config_dir
+
 log = logging.getLogger(__name__)
 
 API = "https://api.notion.com/v1"
 VERSION = "2022-06-28"
-CONFIG_PATH = Path.home() / ".config" / "yt-auto" / "notion.json"
+CONFIG_PATH = config_dir() / "notion.json"   # YT_AUTO_CONFIG_DIR overrides the dir
 TEXT_LIMIT = 2000          # Notion rich_text content limit per element
 MAX_RETRIES = 5
 

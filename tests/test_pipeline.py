@@ -50,10 +50,18 @@ def make_job(cfg, name):
 def youtube(fake_module):
     uploads = []
 
-    def upload(job, publish_at):
+    schedules = []
+
+    def upload(job, publish_at=None):
         uploads.append((job, publish_at))
         return f"vid{len(uploads)}"
-    m = fake_module("youtube", is_configured=lambda: True, upload=upload, uploads=uploads)
+
+    def schedule(video_id, publish_at, now=None):
+        schedules.append((video_id, publish_at))
+        return {"privacyStatus": "private" if publish_at else "public"}
+
+    m = fake_module("youtube", is_configured=lambda: True, upload=upload, uploads=uploads,
+                    schedule=schedule, schedules=schedules, keep_private=lambda vid: None)
     return m
 
 
@@ -106,7 +114,7 @@ def test_publish_upload_error_keeps_row(cfg, fake_notion, fake_module, no_push):
 
 # ---------------- nightly
 
-def fake_build(cfg, topic, job, guidance="", feedback=None, on_script=None):
+def fake_build(cfg, topic, job, guidance="", feedback=None, on_script=None, past=None):
     fake_build.calls.append({"topic": topic, "guidance": guidance, "feedback": feedback})
     job = cfg["_root"] / "out" / f"job{len(fake_build.calls)}"
     job.mkdir(parents=True)

@@ -24,8 +24,17 @@ TINTS = [tuple(int(c + (255 - c) * 0.82) for c in col) for col in COLORS]
 W = 980
 FPS = 30
 ROOT = Path(__file__).resolve().parents[2]
-FONT_DIR = Path("/home/aaab/.local/share/fonts/Inter")
-MONO = "/usr/share/fonts/cascadia-mono-nf-fonts/CascadiaMonoNF-SemiBold.otf"
+
+
+@lru_cache(maxsize=1)
+def _fonts() -> tuple[Path, str]:
+    """(Inter dir, SemiBold mono) from config.yaml render.*, with the CI/home-dir fallbacks of config.py."""
+    from .config import find_font, load_config
+    r = load_config()["render"]
+    mono = Path(r["mono_font"]).with_name("CascadiaMonoNF-SemiBold.otf")
+    if not mono.is_file():
+        mono = find_font(mono.name) or Path(r["mono_font"])
+    return Path(r["font_dir"]), str(mono)
 
 POPUP_GUIDE = """Popup cards are PICTURES first, words last. Every "emoji" must be ONE real emoji character.
 Labels <= 3 words. Pick the type that best shows the idea:
@@ -42,7 +51,7 @@ Labels <= 3 words. Pick the type that best shows the idea:
 # ----------------------------------------------------------------------------- helpers
 @lru_cache(maxsize=64)
 def font(weight: str, px: int):
-    return ImageFont.truetype(str(FONT_DIR / f"Inter-{weight}.ttf"), px)
+    return ImageFont.truetype(str(_fonts()[0] / f"Inter-{weight}.ttf"), px)
 
 
 def ease_out_back(x):
@@ -254,7 +263,7 @@ CODE_COLORS = [(Comment, (156, 163, 175)), (Keyword, (219, 39, 119)), (String, (
 
 def c_code(v, t, dur, i):
     lines = v.get("code", "").expandtabs(4).rstrip("\n").split("\n")[:6]
-    f = ImageFont.truetype(MONO, 46)
+    f = ImageFont.truetype(_fonts()[1], 46)
     lh = 64
     h = 130 + len(lines) * lh + 40
     img, d = card_base(h, COLORS[(i + 1) % len(COLORS)])

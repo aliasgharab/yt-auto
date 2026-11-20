@@ -106,8 +106,9 @@ def _write_duo_script(cfg: dict, topic, past, guidance: str = "", feedback: list
 
 
 def build_short(cfg: dict, topic: str | None = None, job: Path | None = None, guidance: str = "",
-                feedback: list[str] | None = None, on_script=None) -> Path:
-    """Two-character dialogue Short over gameplay. on_script(sc, job) is called once the script exists."""
+                feedback: list[str] | None = None, on_script=None, past: list[str] | None = None) -> Path:
+    """Two-character dialogue Short over gameplay. on_script(sc, job) is called once the script exists.
+    past: titles already made (e.g. from Notion); merged with the titles found in out/."""
     from . import duo
 
     out_root = cfg["_root"] / cfg["output_dir"]
@@ -116,7 +117,8 @@ def build_short(cfg: dict, topic: str | None = None, job: Path | None = None, gu
         sc = json.loads((job / "script.json").read_text())
     else:
         t0 = _stage("dialogue script + edit pass (claude -p)")
-        past = [json.loads(p.read_text())["title"] for p in out_root.glob("*/script.json")]
+        local = [json.loads(p.read_text())["title"] for p in out_root.glob("*/script.json")]
+        past = list(dict.fromkeys([*(past or []), *local]))
         sc = _write_duo_script(cfg, topic, past, guidance, feedback)
         _done(t0)
         job = job or out_root / f"{date.today():%Y%m%d}-{_slug(sc['title'])}-short"
