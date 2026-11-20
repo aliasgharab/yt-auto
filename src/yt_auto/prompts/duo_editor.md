@@ -12,7 +12,10 @@ you find (quote the line number, 0-based, and the offending words):
   an answer that does not logically follow the line before it (e.g. "Right!" to a question whose
   true answer is no).
 - hook: is line 0 a question a teenager would actually wonder about, starting with "$B, ..."?
-  Is it instantly clear and intriguing in under 3 seconds? Is the ending a punchline that loops?
+  Is it instantly clear and intriguing in under 3 seconds? Is the ending a recognisable spin-off of one
+  of the characters' famous lines, twisted to fit the topic (not a generic or cheesy robot joke)?
+  $A famous lines: $A_lines
+  $B famous lines: $B_lines
 - line_length: any line over 16 words; any line clunky for text-to-speech (symbols, parentheses,
   digits, emoji in spoken text, tongue-twisters).
 - popup_fit: a card that does not picture what is said on its line; emojis that don't literally

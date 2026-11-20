@@ -21,6 +21,7 @@ duo:
   explainer: Baymax          # answers: literal, deadpan, gentle; explains simply
   voice_backend: clone       # clone = Chatterbox zero-shot from assets/voices/*_ref.wav | kokoro
   tempo: 1.25                # speed-up applied to every line (pitch preserved); video timing follows
+  max_seconds: 29            # HARD cap on the voiced dialogue: lines get sped up further (to tempo x1.2 max) to fit
   characters:
     Hiro:
       image: assets/characters/hiro.png
@@ -33,6 +34,12 @@ duo:
       speed: 1.18
       pitch: 1.10
       personality: "14-year-old robotics genius; impatient, sarcastic, curious, talks fast"
+      famous_lines:          # the writer riffs on ONE of these for the ending (spin-off, not a quote dump)
+        - "Look for a different angle."
+        - "Nerd school?"
+        - "Bot fighting is not illegal."
+        - "Baymax, deactivate!"
+        - "We're superheroes now."
     Baymax:
       image: assets/characters/baymax.png
       side: right
@@ -44,11 +51,20 @@ duo:
       speed: 1.02
       pitch: 0.97
       personality: "gentle, literal-minded healthcare robot; calm, deadpan, accidentally funny; explains things very simply"
+      famous_lines:
+        - "Hello. I am Baymax, your personal healthcare companion."
+        - "On a scale of one to ten, how would you rate your pain?"
+        - "I cannot deactivate until you say you are satisfied with your care."
+        - "Are you satisfied with your care?"
+        - "Hairy baby. Hairy baby."
+        - "Fist bump. Ba-la-la-la-la."
+        - "I am not fast."
+        - "Low battery."
 
 formats:
   short:
     size: [1080, 1920]
-    target_words: [60, 85]     # ~22-32 s; most 2026 analyses put top Shorts at ~25-35 s
+    target_words: [55, 76]     # always < 30 s (user rule); 80 words came out at 28.4 s
     lines: [6, 9]
   long:
     size: [1920, 1080]

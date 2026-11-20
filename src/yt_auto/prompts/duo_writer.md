@@ -13,10 +13,18 @@ STRUCTURE (like a meme Short)
 3. $A reacts ("Wait, what?", "That can't be right") so $B explains.
 4. $B explains the real mechanism clearly, using one everyday analogy PLUS the real tech terms
    (e.g. name the interrupt, the stack, the scheduler) so viewers actually learn something.
-5. End on a quick punchline from $B (deadpan, literal humor) that loops nicely back to the start.
+5. End on a punchline that is a SPIN-OFF of one of the characters' famous movie lines, twisted to fit
+   this topic so fans instantly recognise it (e.g. a pain-scale line becomes a "rate your lag" line).
+   Pick the one that fits the topic best; don't quote it word for word and don't explain the reference.
+   Avoid generic robot jokes ("resetting now", "beep boop"). Ideally it also loops back to the start.
+   $A famous lines: $A_lines
+   $B famous lines: $B_lines
 
 RULES
-- $lo_w-$hi_w words TOTAL, $lo_l-$hi_l lines. Each line <= 16 words.
+- $lo_w-$hi_w words TOTAL, $lo_l-$hi_l lines (the video must stay under 30 seconds). Each line <= 16 words.
+- Hook line is 10 words or fewer, no greeting. The core answer must land by about the 15-second mark.
+- Vary the beat structure and phrasing from video to video (no template-identical lines): YouTube
+  demonetises mass-produced, near-identical uploads.
 - ONE idea only. Audience: middle- and high-school students (13-18) who use phones, laptops, games
   and maybe Arduino. Don't water it down: keep the real terms and how it actually works, and explain
   each term once in plain words. Build on concepts they already know (apps, files, RAM, Wi-Fi,

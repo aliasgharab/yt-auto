@@ -122,6 +122,8 @@ def write_script(cfg: dict, topic: str | None, past_titles: list[str], guidance:
     feedback_block = ("\nRECENT HUMAN REVIEWER REJECTIONS (do not repeat these mistakes):\n"
                       + "\n".join(f"- {x}" for x in fb) + "\n" if fb else "")
     common = dict(A=A, B=B, A_personality=ca["personality"], B_personality=cb["personality"],
+                  A_lines="; ".join(f'"{x}"' for x in ca.get("famous_lines", [])) or "(none)",
+                  B_lines="; ".join(f'"{x}"' for x in cb.get("famous_lines", [])) or "(none)",
                   lo_w=lo_w, hi_w=hi_w, lo_l=lo_l, hi_l=hi_l, popup_guide=cards.POPUP_GUIDE)
 
     # pass 1: writer
@@ -195,6 +197,14 @@ def voice_lines(sc: dict, cfg: dict, job: Path) -> list[dict]:
             a, _ = k.create(ln["text"], voice=c["voice"], speed=c["speed"], lang="en-us")
             lines.append(_ff_af(a.astype(np.float32), SR,
                                 f"rubberband=pitch={c.get('pitch', 1)}:formant=preserved,atempo={tempo}"))
+    cap = duo.get("max_seconds")
+    if cap:   # hard length cap: speed every line up a bit more rather than ship a >30 s Short
+        speech = sum(len(a) for a in lines) / SR
+        room = cap - GAP * len(lines)
+        if speech > room:
+            extra = min(speech / room, 1.2)
+            print(f"[duo] {speech + GAP * len(lines):.1f}s > {cap}s cap: extra tempo x{extra:.3f}")
+            lines = [_ff_af(a, SR, f"atempo={extra:.4f}") for a in lines]
     gap = np.zeros(int(SR * GAP), dtype=np.float32)
     pieces, timing, t = [], [], 0.0
     for ln, a in zip(sc["lines"], lines):
