@@ -10,3 +10,8 @@ assets/voices/
 dist/
 /fonts/
 .ci-config/
+.env*
+client_secret*.json
+*token*.json
+*.mp4
+*.wav

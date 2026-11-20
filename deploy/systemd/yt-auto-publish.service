@@ -5,9 +5,9 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/aaab/projects/yt-auto
-Environment=PATH=/home/aaab/.local/bin:/home/aaab/projects/yt-auto/.venv/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=%h/projects/yt-auto
+Environment=PATH=%h/.local/bin:%h/projects/yt-auto/.venv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
 Nice=10
-ExecStart=/home/aaab/projects/yt-auto/.venv/bin/yt-auto publish
+ExecStart=%h/projects/yt-auto/.venv/bin/yt-auto publish
 TimeoutStartSec=1h
