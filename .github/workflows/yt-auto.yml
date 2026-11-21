@@ -77,6 +77,7 @@ jobs:
       TASK: ${{ inputs.task || (github.event.schedule == '30 7 * * *' && 'nightly') || (github.event.schedule == '15 7 * * *' && 'preflight') || (github.event.schedule == '0 15 * * 0' && 'weekly') || 'publish' }}
       YT_AUTO_CONFIG_DIR: ${{ github.workspace }}/.ci-config
       PYTHONUNBUFFERED: "1"
+      RVC_DEVICE: cpu            # no GPU on the runner (tools/rvc/rvc_convert.py)
       NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     steps:
@@ -112,6 +113,11 @@ jobs:
         if: env.TASK == 'nightly'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg zstd fontconfig
 
+      - name: Voice backend
+        if: env.TASK == 'nightly'
+        run: |   # rvc needs its models + an Applio env; anything missing -> duo.py falls back to clone
+          if grep -qE '^\s*voice_backend:\s*rvc\b' config.yaml; then echo "RVC=1" >> "$GITHUB_ENV"; fi
+
       - name: Assets (private release)
         if: env.TASK == 'nightly'
         env:
@@ -135,6 +141,22 @@ jobs:
             uv pip install -p tools/clone/.venv/bin/python --index-strategy unsafe-best-match \
               --extra-index-url https://download.pytorch.org/whl/cpu \
               torch==2.6.0 torchaudio==2.6.0 chatterbox-tts==0.1.7 "setuptools<81" && break
+            [ $i = 3 ] && exit 1; sleep $((i * 20))
+          done
+
+      - name: Applio env cache (rvc backend)
+        if: env.TASK == 'nightly' && env.RVC == '1'
+        uses: actions/cache@v4
+        with:
+          path: tools/rvc/Applio
+          key: applio-cpu-${{ hashFiles('deploy/ci/install_rvc.sh') }}
+
+      - name: Applio env (rvc backend, CPU)
+        if: env.TASK == 'nightly' && env.RVC == '1'
+        continue-on-error: true    # without it the render still goes out with the clone voices
+        run: |
+          for i in 1 2 3; do
+            deploy/ci/install_rvc.sh && break
             [ $i = 3 ] && exit 1; sleep $((i * 20))
           done
 

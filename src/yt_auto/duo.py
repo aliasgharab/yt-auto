@@ -190,7 +190,11 @@ def _rvc_ready(cfg) -> bool:
                if not c.get("rvc_model") or not (root / c["rvc_model"]).exists()]
     if missing:
         print(f"[duo] rvc model missing for {', '.join(missing)}: falling back to clone voices")
-    return not missing
+        return False
+    if not (root / "tools/rvc/Applio/.venv/bin/python").exists():
+        print("[duo] Applio env missing (deploy/ci/install_rvc.sh): falling back to clone voices")
+        return False
+    return True
 
 
 def _rvc_lines(sc, cfg, job: Path) -> list[tuple[np.ndarray, int]]:
@@ -231,8 +235,15 @@ def voice_lines(sc: dict, cfg: dict, job: Path) -> list[dict]:
     backend = duo.get("voice_backend")
     if backend == "rvc" and not _rvc_ready(cfg):
         backend = "clone"
+    raw = None
+    if backend == "rvc":
+        try:
+            raw = _rvc_lines(sc, cfg, job)
+        except (subprocess.CalledProcessError, OSError) as e:   # broken Applio env: never lose the render
+            print(f"[duo] rvc conversion failed ({e}): falling back to clone voices")
+            backend = "clone"
     if backend in ("clone", "rvc"):
-        raw = (_rvc_lines if backend == "rvc" else _clone_lines)(sc, cfg, job)
+        raw = raw or _clone_lines(sc, cfg, job)
         lines = [_ff_af(a, sr, f"silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
                                f"silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
                                f"atempo={tempo}") for a, sr in raw]
