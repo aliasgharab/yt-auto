@@ -3,6 +3,7 @@ premise built on a real tech concept, twist ending, one big yellow word on scree
 Same visuals as the daily Shorts (gameplay, cards, character). Does not change the daily pipeline.
 
   .venv/bin/python tools/story_test.py ["topic"]        # write + render -> out/<date>-<slug>-story/
+  .venv/bin/python tools/story_test.py --dripdyl        # full DripDyl format: 2.5 min, fast, "what if" world
   .venv/bin/python tools/story_test.py --from out/JOB   # re-render an existing story job
 """
 import copy
@@ -15,28 +16,53 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from yt_auto import _slug, cards, duo, script  # noqa: E402
+from yt_auto import _slug, cards, duo, helper, script  # noqa: E402
 from yt_auto.agents import load_prompt  # noqa: E402
 from yt_auto.config import load_config  # noqa: E402
 
 NARRATOR = "Hiro"
-WORDS, LINES = (150, 200), (12, 22)
+STYLES = {   # prompt, words, lines, tempo, max seconds
+    "tech": dict(prompt="story_writer", words=(150, 200), lines=(12, 22), tempo=1.0, max_seconds=90),
+    # DripDyl format: ~2.5 min, ~230 words/min (clone voice is ~140 wpm at 1.0x -> 1.6x), "what if" world
+    "dripdyl": dict(prompt="story_dripdyl", words=(480, 560), lines=(45, 70), tempo=1.6, max_seconds=170),
+}
+STYLE = STYLES["dripdyl" if "--dripdyl" in sys.argv else "tech"]
 
 
 def story_cfg(cfg):
     c = copy.deepcopy(cfg)
-    c["duo"].update(max_seconds=90, captions="single")
+    c["duo"].update(max_seconds=STYLE["max_seconds"], tempo=STYLE["tempo"], captions="single")
     return c
 
 
 def write_story(cfg, topic):
     ch = cfg["duo"]["characters"][NARRATOR]
-    topic_line = (f"CONCEPT: {topic}" if topic else
-                  f"CONCEPT: pick ONE specific concept from this niche: {cfg['channel']['niche']}")
-    prompt = load_prompt("story_writer", N=NARRATOR, N_personality=ch["personality"], topic_line=topic_line,
-                         lo_w=WORDS[0], hi_w=WORDS[1], lo_l=LINES[0], hi_l=LINES[1],
-                         popup_guide=cards.POPUP_GUIDE)
-    return script._call_claude(prompt, cfg, duo._schema([NARRATOR]))
+    if STYLE["prompt"] == "story_dripdyl":
+        topic_line = f"PREMISE IDEA: {topic}" if topic else "PREMISE: invent a fresh, original one."
+    else:
+        topic_line = (f"CONCEPT: {topic}" if topic else
+                      f"CONCEPT: pick ONE specific concept from this niche: {cfg['channel']['niche']}")
+    (lo_w, hi_w), (lo_l, hi_l) = STYLE["words"], STYLE["lines"]
+    prompt = load_prompt(STYLE["prompt"], N=NARRATOR, N_personality=ch["personality"], topic_line=topic_line,
+                         lo_w=lo_w, hi_w=hi_w, lo_l=lo_l, hi_l=hi_l, popup_guide=cards.POPUP_GUIDE)
+    draft = script._call_claude(prompt, cfg, duo._schema([NARRATOR]))
+    if STYLE["prompt"] != "story_dripdyl":
+        return draft
+    # editor pass: free helper model first (plot holes, twist clarity, safety), Claude as fallback
+    schema = {"type": "object", "required": ["problems", "script"], "properties": {
+        "problems": {"type": "array", "items": {"type": "object", "required": ["problem", "fix"], "properties": {
+            "category": {"type": "string"}, "line": {"type": ["integer", "null"]},
+            "problem": {"type": "string"}, "fix": {"type": "string"}}}},
+        "script": duo._schema([NARRATOR])}}
+    ep = load_prompt("story_editor", draft=json.dumps(draft, indent=1, ensure_ascii=False), lo_w=lo_w, hi_w=hi_w,
+                     lo_l=lo_l, hi_l=hi_l, popup_guide=cards.POPUP_GUIDE)
+    edited = helper.call_json(ep, schema, cfg, "story_editor", timeout=600)
+    words = sum(len(ln["text"].split()) for ln in (edited or {}).get("script", {}).get("lines", []))
+    if edited is None or not lo_w * 0.85 <= words <= hi_w * 1.15:
+        edited = script._call_claude(ep, cfg, schema)
+    for pr in edited.get("problems", []):
+        print(f"  [editor] line {pr.get('line')}: {pr['problem'][:140]}")
+    return edited.get("script") or draft
 
 
 def main():

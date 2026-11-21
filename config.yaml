@@ -10,6 +10,9 @@ channel:
 llm:
   backend: claude-cli        # headless Claude Code on your subscription; no API key
   model: sonnet
+  helper:                    # FREE model first for these tasks, Claude only as fallback (src/yt_auto/helper.py)
+    model: opencode/deepseek-v4.1-flash-free
+    tasks: [editor, story_editor, research, analyze]   # script writer + vision QA stay on Claude
 
 tts:
   voice: am_michael          # try: am_michael, am_adam, bm_george, af_heart, bf_emma

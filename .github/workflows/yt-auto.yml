@@ -109,6 +109,19 @@ jobs:
         if: env.TASK != 'publish'
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Free helper LLM (opencode; Claude is the fallback)
+        if: env.TASK == 'nightly' || env.TASK == 'weekly'
+        continue-on-error: true    # without it every helper task just goes to Claude
+        run: |
+          curl -fsSL https://opencode.ai/install | bash
+          mkdir -p ~/.config/opencode
+          cat > ~/.config/opencode/opencode.jsonc <<'JSON'
+          {"$schema": "https://opencode.ai/config.json",
+           "permission": {"edit": "deny", "bash": "deny", "webfetch": "deny", "websearch": "deny",
+                          "task": "deny", "external_directory": "deny", "doom_loop": "deny"}}
+          JSON
+          ~/.opencode/bin/opencode --version
+
       - name: ffmpeg
         if: env.TASK == 'nightly'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg zstd fontconfig

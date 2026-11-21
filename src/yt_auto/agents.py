@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from . import script
+from . import helper, script
 
 PROMPTS = Path(__file__).resolve().parent / "prompts"
 UA = "yt-auto-research/0.1"
@@ -215,7 +215,8 @@ def research_ideas(cfg: dict, existing_titles: list[str], n: int) -> list[dict]:
         "research", A=duo["asker"], B=duo["explainer"], niche=" ".join(cfg["channel"]["niche"].split()),
         signals=format_signals(signals) if signals else "(all sources failed today: rely on the niche)",
         existing="\n".join(f"- {t}" for t in existing_titles[-150:]) or "(none yet)", n=n + 2)
-    ideas = _claude(prompt, cfg, IDEAS_SCHEMA).get("ideas", [])
+    res = helper.call_json(prompt, IDEAS_SCHEMA, cfg, "research")
+    ideas = (res if res and res.get("ideas") else _claude(prompt, cfg, IDEAS_SCHEMA)).get("ideas", [])
     return dedupe_ideas(ideas, existing_titles, n)
 
 
@@ -518,7 +519,10 @@ def analyze(cfg: dict, rows: list[dict], current_guidance: str, signals: str = "
                          videos_total=len(rows), small_sample_note=small, rows=format_rows(rows) or "(none)",
                          current=current_guidance.strip() or "(empty)",
                          signals=(signals or "").strip() or "(none yet)")
-    return _claude(prompt, cfg, ANALYZE_SCHEMA)["guidance_markdown"].strip()
+    res = helper.call_json(prompt, ANALYZE_SCHEMA, cfg, "analyze")
+    if not res or len(res.get("guidance_markdown", "").strip()) < 80:
+        res = _claude(prompt, cfg, ANALYZE_SCHEMA)
+    return res["guidance_markdown"].strip()
 
 
 # ============================================================================ CLI

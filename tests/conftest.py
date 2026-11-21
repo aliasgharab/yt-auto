@@ -73,3 +73,9 @@ def fake_module(monkeypatch):
         monkeypatch.setitem(sys.modules, f"yt_auto.{name}", m)
         return m
     return install
+
+
+@pytest.fixture(autouse=True)
+def _no_real_helper(monkeypatch):
+    """Never call the real free-model helper (opencode) from tests."""
+    monkeypatch.setenv("YT_HELPER", "0")

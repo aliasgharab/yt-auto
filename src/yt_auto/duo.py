@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from . import captions, cards, script, tts
+from . import captions, cards, helper, script, tts
 from .assemble import AUDIO_ARGS, _encoder_args
 
 SR = tts.SR
@@ -132,13 +132,36 @@ def write_script(cfg: dict, topic: str | None, past_titles: list[str], guidance:
 
     # pass 2: editor (separate call, critical persona, must enumerate problems before fixing)
     draft.pop("editor_notes", None)
-    edited = script._call_claude(
-        load_prompt("duo_editor", facts=script_facts(draft, cfg), draft=json.dumps(draft, indent=1, ensure_ascii=False),
-                    guidance_block=(guidance_block + feedback_block).replace("the rules above", "the rules"),
-                    **common), cfg, _editor_schema([A, B]))
+    edit_prompt = load_prompt("duo_editor", facts=script_facts(draft, cfg),
+                              draft=json.dumps(draft, indent=1, ensure_ascii=False),
+                              guidance_block=(guidance_block + feedback_block).replace("the rules above", "the rules"),
+                              **common)
+    # free helper model first; Claude if it fails or its script breaks the hard limits
+    edited = helper.call_json(edit_prompt, _editor_schema([A, B]), cfg, "editor")
+    if edited is not None and not _within_limits(edited.get("script") or {}, cfg):
+        print("[helper] editor: script outside word/line limits -> Claude", flush=True)
+        edited = None
+    editor = "helper" if edited is not None else "claude"
+    if edited is None:
+        edited = script._call_claude(edit_prompt, cfg, _editor_schema([A, B]))
     sc = edited.get("script") or draft
     sc["editor_notes"] = [_note(p) for p in edited.get("problems", [])]
+    sc["editor"] = editor
     return sc
+
+
+def _within_limits(sc: dict, cfg: dict, slack: float = 0.1) -> bool:
+    """Hard limits a helper-edited script must meet (else Claude re-edits): word and line counts within
+    10% of the targets, no empty lines, at least 5 cards, first card a title card."""
+    f = cfg["formats"]["short"]
+    lines = sc.get("lines") or []
+    words = sum(len((ln.get("text") or "").split()) for ln in lines)
+    lo_w, hi_w = f["target_words"]
+    lo_l, hi_l = f["lines"]
+    return (lo_w * (1 - slack) <= words <= hi_w * (1 + slack) and lo_l <= len(lines) <= hi_l
+            and all((ln.get("text") or "").strip() for ln in lines)
+            and sum(1 for ln in lines if ln.get("popup")) >= 5
+            and (lines[0].get("popup") or {}).get("type") == "title")
 
 
 # ----------------------------------------------------------------------------- audio
