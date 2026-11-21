@@ -54,7 +54,8 @@ def _schema(names):
     }
 
 
-EDIT_CATEGORIES = ["accuracy", "clarity", "hook", "line_length", "popup_fit", "word_count", "voice"]
+EDIT_CATEGORIES = ["accuracy", "clarity", "hook", "density", "title", "line_length", "popup_fit", "word_count",
+                   "voice"]
 
 
 def _editor_schema(names):
@@ -79,7 +80,7 @@ def script_facts(sc: dict, cfg: dict) -> str:
     lines = sc.get("lines", [])
     counts = [len(ln.get("text", "").split()) for ln in lines]
     total = sum(counts)
-    long_ = [f"line {i} ({c} words)" for i, c in enumerate(counts) if c > 16]
+    long_ = [f"line {i} ({c} words)" for i, c in enumerate(counts) if c > 18]
     cards_ = [ln["popup"] for ln in lines if ln.get("popup")]
     long_labels = []
     for i, ln in enumerate(lines):
@@ -90,7 +91,7 @@ def script_facts(sc: dict, cfg: dict) -> str:
     return "\n".join([
         f"- total words: {total} (target {lo_w}-{hi_w}){'  <-- OUT OF RANGE' if not lo_w <= total <= hi_w else ''}",
         f"- lines: {len(lines)} (target {lo_l}-{hi_l}){'  <-- OUT OF RANGE' if not lo_l <= len(lines) <= hi_l else ''}",
-        f"- lines over 16 words: {', '.join(long_) or 'none'}",
+        f"- lines over 18 words: {', '.join(long_) or 'none'}",
         f"- popup cards: {len(cards_)}; first card type: {(lines[0].get('popup') or {}).get('type') if lines else None}",
         f"- card labels over 3 words: {', '.join(long_labels) or 'none'}",
     ])
@@ -122,8 +123,6 @@ def write_script(cfg: dict, topic: str | None, past_titles: list[str], guidance:
     feedback_block = ("\nRECENT HUMAN REVIEWER REJECTIONS (do not repeat these mistakes):\n"
                       + "\n".join(f"- {x}" for x in fb) + "\n" if fb else "")
     common = dict(A=A, B=B, A_personality=ca["personality"], B_personality=cb["personality"],
-                  A_lines="; ".join(f'"{x}"' for x in ca.get("famous_lines", [])) or "(none)",
-                  B_lines="; ".join(f'"{x}"' for x in cb.get("famous_lines", [])) or "(none)",
                   lo_w=lo_w, hi_w=hi_w, lo_l=lo_l, hi_l=hi_l, popup_guide=cards.POPUP_GUIDE)
 
     # pass 1: writer

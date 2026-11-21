@@ -12,11 +12,15 @@ you find (quote the line number, 0-based, and the offending words):
   an answer that does not logically follow the line before it (e.g. "Right!" to a question whose
   true answer is no).
 - hook: is line 0 a question a teenager would actually wonder about, starting with "$B, ..."?
-  Is it instantly clear and intriguing in under 3 seconds? Is the ending a recognisable spin-off of one
-  of the characters' famous lines, twisted to fit the topic (not a generic or cheesy robot joke)?
-  $A famous lines: $A_lines
-  $B famous lines: $B_lines
-- line_length: any line over 16 words; any line clunky for text-to-speech (symbols, parentheses,
+  Is it instantly clear and intriguing in under 3 seconds? Is the last line a real payoff (the final
+  fact or takeaway)? Flag any catchphrase, movie-line reference, joke sign-off or gag at the end.
+- density: any line that teaches nothing (pure reaction like "Wait, what?", a joke, a fake-out
+  answer, filler banter); replace it with a real fact about the topic. The script should cover what
+  it is, how it works, the real terms, one concrete real-world example and one surprising detail.
+- title: must be the search question people type, containing the topic's common name near the start
+  (e.g. "What Is a Watchdog Timer?"), <= 60 chars; no character names, no clickbait, no vague wording
+  that leaves out the term.
+- line_length: any line over 18 words; any line clunky for text-to-speech (symbols, parentheses,
   digits, emoji in spoken text, tongue-twisters).
 - popup_fit: a card that does not picture what is said on its line; emojis that don't literally
   depict the analogy; labels over 3 words; fewer than 5 cards; first card not a "title" card;
@@ -30,7 +34,7 @@ MEASURED FACTS (computed by code, trust these):
 $facts
 $guidance_block
 STEP 2 - Return the fixed script: the complete script JSON with every problem from step 1 fixed.
-Keep it funny, keep the characters' voices, keep the 5-beat structure, keep the same topic.
+Keep the characters' voices and the same topic; make it denser, not longer.
 
 $popup_guide
 

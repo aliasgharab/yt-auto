@@ -401,7 +401,7 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
             if pv.get("video_id"):
                 vals["Video ID"] = pv["video_id"]
                 vals["YouTube URL"] = youtube_url(pv["video_id"], "short")
-        if ok and qa["verdict"] == "pass" and pcfg(cfg)["auto_approve"]:
+        if ok and pcfg(cfg)["auto_approve"]:   # pass or warn; only a QA fail still blocks a video
             vals["Approve"] = True
         nc.update_row(rid, vals)
         title = meta.get("title", row.get("Title"))
@@ -409,7 +409,9 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
             auto = vals.get("Approve")
             notion = row.get("_url")
             msg = f"{title} - {meta.get('duration_s')}s, QA {qa['verdict']}"
-            if pv.get("studio"):
+            if auto:
+                msg += "\nUploaded; goes public automatically at the next free slot."
+            elif pv.get("studio"):
                 msg += "\nTap to preview in YouTube Studio (private)."
             elif pv.get("run"):
                 msg += "\nVideo is a 7-day artifact of the CI run (tap to open)."
@@ -418,7 +420,7 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
             if notion:
                 msg += f"\nNotion: {notion}"
             actions = [("Notion", notion)] if notion and (pv.get("studio") or pv.get("run")) else None
-            notify.send("New Short ready" + (" (auto-approved)" if auto else ", approve?"), msg,
+            notify.send("New Short done" + (", auto-publishing" if auto else ", approve?"), msg,
                         click=pv.get("studio") or pv.get("run") or notion, tags=["clapper"], actions=actions)
         else:
             notify.send("Short failed QA", f"{title}: {qa['notes']}"[:400], click=row.get("_url"), tags=["x"])

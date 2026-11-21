@@ -314,3 +314,15 @@ def test_write_unique_script_gives_up_after_three(cfg):
     with pytest.raises(RuntimeError, match="policy guard"):
         write_unique_script(cfg, "t", [], recent=recent, write=write)
     assert len(calls) == 3
+
+
+def test_auto_approve_publishes_warn_but_not_fail(cfg, fake_notion, fake_module, youtube):
+    cfg["publish"]["auto_approve"] = True
+    fake_build.calls = []
+    verdicts = iter(["warn", "fail"])
+    fake_module("agents", qa_review=lambda c, j: {"verdict": next(verdicts), "notes": ""})
+    nc = fake_notion([{"Title": "a", "Status": "Idea"}, {"Title": "b", "Status": "Idea"}])
+    pipeline.nightly(cfg, nc, count=2, build=fake_build)
+    warn, fail = nc.rows
+    assert warn["Approve"] is True and warn["Status"] == "Scheduled"
+    assert not fail.get("Approve") and fail["Status"] == "Failed"
