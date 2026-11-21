@@ -16,3 +16,11 @@ client_secret*.json
 *.mp4
 *.wav
 .claude/settings.local.json
+
+# voice tooling (RVC / Demucs): large installs, data and model weights
+tools/rvc/Applio/
+tools/rvc/logs/
+tools/demucs/.venv
+assets/voices/clean/
+*.pth
+*.index

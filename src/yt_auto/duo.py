@@ -1,6 +1,6 @@
 """Shorts format: two characters talk over gameplay, with colourful animated pop-up cards.
 
-script (claude -p) -> per-line cloned character voices (Chatterbox, sped up) -> animated cards ->
+script (claude -p) -> per-line character voices (Chatterbox clone, or Kokoro + RVC; sped up) -> animated cards ->
 word captions (whisper) -> ffmpeg composite over a random gameplay segment.
 """
 
@@ -183,14 +183,56 @@ def _clone_lines(sc, cfg, job: Path) -> list[np.ndarray]:
     return res
 
 
+def _rvc_ready(cfg) -> bool:
+    """True if every character has an existing rvc_model (else the rvc backend falls back to clone)."""
+    root = cfg["_root"]
+    missing = [n for n, c in cfg["duo"]["characters"].items()
+               if not c.get("rvc_model") or not (root / c["rvc_model"]).exists()]
+    if missing:
+        print(f"[duo] rvc model missing for {', '.join(missing)}: falling back to clone voices")
+    return not missing
+
+
+def _rvc_lines(sc, cfg, job: Path) -> list[tuple[np.ndarray, int]]:
+    """Kokoro speaks each line (fast), then one Applio subprocess converts them all to the character voices."""
+    root = cfg["_root"]
+    chars = cfg["duo"]["characters"]
+    vdir = job / "voice"
+    vdir.mkdir(exist_ok=True)
+    k = tts._kokoro_for(cfg)
+    jobs, outs = [], []
+    for i, ln in enumerate(sc["lines"]):
+        c = chars[ln["speaker"]]
+        out = vdir / f"rvc_{i:02d}.wav"
+        outs.append(out)
+        if out.exists():
+            continue
+        src = vdir / f"kokoro_{i:02d}.wav"
+        a, sr = k.create(ln["text"], voice=c["voice"], speed=c["speed"], lang="en-us")
+        sf.write(src, a.astype(np.float32), sr)
+        jobs.append({"in": str(src), "out": str(out), "model": str(root / c["rvc_model"]),
+                     "index": str(root / c["rvc_index"]) if c.get("rvc_index") else "",
+                     "pitch": c.get("rvc_pitch", 0), "index_rate": c.get("rvc_index_rate", 0.5),
+                     "protect": c.get("rvc_protect", 0.33)})
+    if jobs:
+        jf = vdir / "rvc_jobs.json"
+        jf.write_text(json.dumps(jobs))
+        py = root / "tools/rvc/Applio/.venv/bin/python"
+        subprocess.run([str(py), str(root / "tools/rvc/rvc_convert.py"), str(jf)], check=True)
+    return [sf.read(o, dtype="float32") for o in outs]
+
+
 def voice_lines(sc: dict, cfg: dict, job: Path) -> list[dict]:
     """Voices each line, applies tempo, writes job/narration.wav (voices) + job/mix.wav (+ swooshes).
     Returns timing [{speaker, start, end, popup}] in final (sped-up) seconds."""
     duo = cfg["duo"]
     chars = duo["characters"]
     tempo = duo.get("tempo", 1.0)
-    if duo.get("voice_backend") == "clone":
-        raw = _clone_lines(sc, cfg, job)
+    backend = duo.get("voice_backend")
+    if backend == "rvc" and not _rvc_ready(cfg):
+        backend = "clone"
+    if backend in ("clone", "rvc"):
+        raw = (_rvc_lines if backend == "rvc" else _clone_lines)(sc, cfg, job)
         lines = [_ff_af(a, sr, f"silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
                                f"silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
                                f"atempo={tempo}") for a, sr in raw]
