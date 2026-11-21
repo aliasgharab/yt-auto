@@ -23,8 +23,8 @@ from yt_auto.config import load_config  # noqa: E402
 NARRATOR = "Hiro"
 STYLES = {   # prompt, words, lines, tempo, max seconds
     "tech": dict(prompt="story_writer", words=(150, 200), lines=(12, 22), tempo=1.0, max_seconds=90),
-    # DripDyl format: ~2.5 min, ~230 words/min (clone voice is ~140 wpm at 1.0x -> 1.6x), "what if" world
-    "dripdyl": dict(prompt="story_dripdyl", words=(480, 560), lines=(45, 70), tempo=1.6, max_seconds=170),
+    # DripDyl format: ~2.5 min, ~230 words/min (1.6x measured 275 wpm on the clone voice -> 1.35x), "what if" world
+    "dripdyl": dict(prompt="story_dripdyl", words=(540, 620), lines=(50, 75), tempo=1.35, max_seconds=170),
 }
 STYLE = STYLES["dripdyl" if "--dripdyl" in sys.argv else "tech"]
 
