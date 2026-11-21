@@ -3,14 +3,17 @@
 #   tools/rvc/kaggle_run.sh            # upload clips, start the GPU job, wait, download + install models
 #   tools/rvc/kaggle_run.sh status     # just show the job status
 #   tools/rvc/kaggle_run.sh fetch      # download + install the models of a finished job
-# Needs: `kaggle` CLI (uv tool install kaggle) and ~/.kaggle/kaggle.json (Kaggle -> Settings -> API ->
-# Create New Token), and a phone-verified Kaggle account (GPU + internet in notebooks).
+# Needs: `kaggle` CLI (uv tool install kaggle) and a Kaggle API token, ~/.kaggle/access_token or
+# ~/.kaggle/kaggle.json (Kaggle -> Settings -> API ->
+# Create New Token; set KAGGLE_USER if it isn't kernelkids), and a phone-verified Kaggle account (GPU + internet in notebooks).
 # Output: assets/voices/rvc/{hiro,baymax}.{pth,index}  (then set duo.voice_backend: rvc to A/B).
 set -euo pipefail
 ROOT="${YT_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K="${KAGGLE:-$(command -v kaggle || echo "$HOME/.local/bin/kaggle")}"
-USER_K="$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.kaggle/kaggle.json')))['username'])")"
+# Kaggle user: $KAGGLE_USER, else ~/.kaggle/kaggle.json (old-style token), else kernelkids. New-style tokens
+# (~/.kaggle/access_token, KGAT_...) carry no username, so there is no kaggle.json to read.
+USER_K="${KAGGLE_USER:-$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.kaggle/kaggle.json')))['username'])" 2>/dev/null || echo kernelkids)}"
 DS="$USER_K/yt-auto-voices"
 KERNEL="$USER_K/yt-auto-rvc-train"
 WORK="${TMPDIR:-/tmp}/yt-auto-kaggle"; mkdir -p "$WORK"
@@ -19,7 +22,8 @@ status() { "$K" kernels status "$KERNEL" 2>&1 | tail -1 | tr "[:upper:]" "[:lowe
 
 fetch() {
   rm -rf "$WORK/out" && mkdir -p "$WORK/out"
-  "$K" kernels output "$KERNEL" -p "$WORK/out" >/dev/null
+  # only the bundle + log: the full output also holds Applio and its checkpoints (3+ GB)
+  "$K" kernels output "$KERNEL" -p "$WORK/out" --file-pattern '^rvc_models\.zip$' >/dev/null
   zip="$(find "$WORK/out" -name 'rvc_models.zip' | head -1)"
   [ -n "$zip" ] || { echo "no rvc_models.zip in the job output (see $WORK/out/*.log)"; exit 1; }
   mkdir -p "$ROOT/assets/voices/rvc" && unzip -o -q "$zip" -d "$ROOT/assets/voices/rvc"
