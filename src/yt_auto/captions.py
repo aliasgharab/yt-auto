@@ -99,7 +99,9 @@ def _ts_srt(t):
     return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
 
 
-def write_ass(words, size, out: Path, font="Inter ExtraBold", fs=None, margin_v=None):
+def write_ass(words, size, out: Path, font="Inter ExtraBold", fs=None, margin_v=None, single=False):
+    """single=True: one word at a time, big and yellow (story format); default: 3-word chunks with the
+    spoken word highlighted."""
     W, H = size
     vertical = H > W
     fs = fs or (92 if vertical else 58)
@@ -117,14 +119,19 @@ Style: Cap,{font},{fs},&H00CFE1E6,&H00FFFFFF,&H00140E0B,&H96000000,-1,0,0,0,100,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+    if single:   # yellow fill (&HBBGGRR), thick black outline, pop-in scale
+        head = head.replace("&H00CFE1E6,&H00FFFFFF,&H00140E0B", "&H0035E1FF,&H00FFFFFF,&H00000000")
     lines = []
-    chunks = list(_chunks(words))
+    chunks = list(_chunks(words, max_words=1) if single else _chunks(words))
     for ci, ch in enumerate(chunks):
         next_start = chunks[ci + 1][0][0] if ci + 1 < len(chunks) else 1e9
         for i, (s, e, _) in enumerate(ch):
             end = ch[i + 1][0] if i + 1 < len(ch) else min(e + 0.15, next_start)
-            txt = " ".join((r"{\c&H50B4E6&}" + w.upper() + r"{\c&HCFE1E6&}") if j == i else w.upper()
-                           for j, (_, _, w) in enumerate(ch))
+            if single:
+                txt = r"{\fscx80\fscy80\t(0,80,\fscx100\fscy100)}" + ch[0][2].lower()
+            else:
+                txt = " ".join((r"{\c&H50B4E6&}" + w.upper() + r"{\c&HCFE1E6&}") if j == i else w.upper()
+                               for j, (_, _, w) in enumerate(ch))
             lines.append(f"Dialogue: 0,{_ts_ass(s)},{_ts_ass(end)},Cap,,0,0,0,,{txt}")
     out.write_text(head + "\n".join(lines) + "\n")
 

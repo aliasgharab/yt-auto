@@ -320,6 +320,8 @@ def composite(timing, cfg, job: Path, ass: Path):
     # both characters always on screen in their corner; the speaker bobs, the listener is dimmed
     for name, c in chars.items():
         spans = [(tm["start"], tm["end"] + GAP) for tm in timing if tm["speaker"] == name]
+        if not spans:   # a character with no lines (story format: one narrator) isn't shown
+            continue
         talking = "+".join(f"between(t,{a:.2f},{b:.2f})" for a, b in spans) or "0"
         inputs += ["-loop", "1", "-framerate", str(fps), "-t", f"{total:.2f}", "-i", str(root / c["image"])]
         h = c.get("height", 560)
@@ -387,6 +389,9 @@ def build_audio_and_video(sc: dict, cfg: dict, job: Path):
         [{"text": ln["text"], "start": t["start"], "end": t["end"]} for ln, t in zip(sc["lines"], timing)])
     captions.write_srt(words, job / "captions.srt")
     W, H = cfg["formats"]["short"]["size"]
-    captions.write_ass(words, (W, H), job / "captions.ass", fs=100, margin_v=int(H * 0.37))
+    if cfg["duo"].get("captions") == "single":   # story format: one big yellow word, mid-screen
+        captions.write_ass(words, (W, H), job / "captions.ass", fs=150, margin_v=int(H * 0.42), single=True)
+    else:
+        captions.write_ass(words, (W, H), job / "captions.ass", fs=100, margin_v=int(H * 0.37))
     composite(timing, cfg, job, job / "captions.ass")
     return timing
