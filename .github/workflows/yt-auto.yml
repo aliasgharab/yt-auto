@@ -7,6 +7,8 @@
 #          ASSETS_TOKEN (fine-grained PAT: Contents read-only on the private yt-auto-assets repo)
 # Variables (optional): ASSETS_REPO (default <owner>/yt-auto-assets)
 name: yt-auto
+# The task in the run title lets the once-a-day guard below find earlier nightlies.
+run-name: ${{ inputs.task || (github.event.schedule == '30 7 * * *' && 'nightly') || (github.event.schedule == '15 7 * * *' && 'preflight') || (github.event.schedule == '0 15 * * 0' && 'weekly') || 'publish' }}${{ inputs.count && format(' (count {0})', inputs.count) || '' }}
 
 on:
   schedule:
@@ -36,7 +38,39 @@ permissions:
   contents: read
 
 jobs:
+  # Once-a-day guard for the nightly. GitHub's native cron fires hours late (16:17Z on 2026-11-20, 15:29Z on
+  # 2026-11-21) after the heartbeat already dispatched the 07:30Z nightly, so two full builds ran per day.
+  # Skips this nightly if an EARLIER nightly (plain, no count) succeeded or is still running in the last 20 h.
+  # Manual runs with a count always go. Fails open: if the API call breaks, the nightly runs.
+  gate:
+    if: (inputs.task == 'nightly' || github.event.schedule == '30 7 * * *') && !inputs.count
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(gh run list -R "$GITHUB_REPOSITORY" -w yt-auto.yml -L 100 \
+                --json databaseId,displayTitle,createdAt,status,conclusion \
+                --jq "[.[] | select(.databaseId < $GITHUB_RUN_ID and .displayTitle == \"nightly\"
+                        and (.createdAt | fromdateiso8601) > (now - 72000)
+                        and (.status != \"completed\" or .conclusion == \"success\"))] | length") || n=0
+          echo "earlier nightlies in the last 20 h: $n"
+          if [ "${n:-0}" -gt 0 ]; then
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping: a nightly already ran in the last 20 h (late duplicate cron)."
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
   run:
+    needs: gate
+    if: ${{ !cancelled() && (needs.gate.result == 'skipped' || needs.gate.outputs.go == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
