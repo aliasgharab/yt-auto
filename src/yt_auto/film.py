@@ -34,7 +34,7 @@ CHANNEL = "Errata"
 DISCLOSURE = "Animation, music and sound effects are made in code. The narration is a synthetic voice."
 
 DEFAULTS = {"dir": "film", "voice_python": "film/tools/voice/.venv/bin/python",
-            "director_model": "opus", "director_timeout_min": 150, "words": [290, 350]}
+            "director_model": "opus", "director_timeout_min": 150, "words": [290, 350], "repairs": 1}
 
 
 def fcfg(cfg: dict) -> dict:
@@ -97,7 +97,8 @@ def check_sources(sources: list[dict], timeout: float = 12, opener=None) -> list
 
 SCRIPT_SCHEMA = {
     "type": "object",
-    "required": ["subject", "slug", "summary", "lines", "title_card", "thumbnail", "sources", "hashtags", "tags"],
+    "required": ["subject", "slug", "summary", "lines", "title_card", "thumbnail", "thumbnail_alts", "short_hook",
+                 "short_end_line", "sources", "hashtags", "tags"],
     "properties": {
         "subject": {"type": "string", "description": "what the video explains, title case, 1-5 words, e.g. 'The Enigma Machine'"},
         "slug": {"type": "string", "pattern": "^[a-z][a-z0-9]{2,20}$", "description": "one lowercase word, e.g. 'enigma'"},
@@ -110,6 +111,12 @@ SCRIPT_SCHEMA = {
         "thumbnail": {"type": "object", "required": ["word", "line"], "properties": {
             "word": {"type": "string", "description": "ONE word, max 10 letters"},
             "line": {"type": "string", "description": "max 4 words"}}},
+        "thumbnail_alts": {"type": "array", "minItems": 2, "maxItems": 2, "items": {
+            "type": "object", "required": ["word", "line"],
+            "properties": {"word": {"type": "string"}, "line": {"type": "string"}}},
+            "description": "two DIFFERENT thumbnail angles for A/B testing (a number, a name, a question...)"},
+        "short_hook": {"type": "string", "description": "headline for the vertical teaser Short, 4-9 words, curiosity"},
+        "short_end_line": {"type": "integer", "minimum": 3, "description": "1-based line the cold open's cliffhanger is on (within ~50 s)"},
         "sources": {"type": "array", "minItems": 2, "maxItems": 5, "items": {
             "type": "object", "required": ["title", "url"],
             "properties": {"title": {"type": "string"}, "url": {"type": "string"}}}},
@@ -294,23 +301,51 @@ def stage_sounds(cfg: dict) -> None:
 
 def stage_render(cfg: dict, comp: str, job: Path) -> Path:
     root = film_root(cfg)
-    raw = job / "raw.mp4"
+    raw = Path(job).resolve() / "raw.mp4"
     _run(["npx", "remotion", "render", comp, str(raw), "--log=error"], root, timeout=4 * 3600, what="remotion render")
     return raw
 
 
-def stage_thumbnail(cfg: dict, film: dict, sc: dict, job: Path) -> Path:
+def stage_thumbnail(cfg: dict, film: dict, sc: dict, job: Path) -> list[Path]:
+    """Three thumbnails for YouTube's Test & Compare: thumbnail.jpg (A, circled word, set on upload),
+    thumbnail_b.jpg (big face) and thumbnail_c.jpg (case-file stamp) from the writer's alternative angles."""
     from PIL import Image
     root = film_root(cfg)
-    th = {**sc["thumbnail"], **(film.get("thumbnail") or {})}
-    props = job / "thumbnail.props.json"
-    props.write_text(json.dumps({"word": th["word"], "line": th.get("line", ""), "brow": th.get("brow", 0.6)}))
-    png = job / "thumbnail.png"
-    _run(["npx", "remotion", "still", "Thumbnail", str(png), "--frame=30", f"--props={props}", "--log=error"],
-         root, timeout=600, what="thumbnail")
-    jpg = job / "thumbnail.jpg"
-    Image.open(png).convert("RGB").save(jpg, quality=92)
-    return jpg
+    job = Path(job).resolve()   # remotion runs in film/, so paths must be absolute
+    main = {**sc["thumbnail"], **(film.get("thumbnail") or {})}
+    alts = list(sc.get("thumbnail_alts") or [])
+    specs = [("thumbnail", "circle", main)]
+    for name, variant, alt in zip(("thumbnail_b", "thumbnail_c"), ("face", "stamp"), alts + [main, main]):
+        specs.append((name, variant, alt))
+    out = []
+    for name, variant, th in specs:
+        props = job / f"{name}.props.json"
+        props.write_text(json.dumps({"word": th["word"], "line": th.get("line", ""),
+                                     "brow": main.get("brow", 0.6), "variant": variant}))
+        png = job / f"{name}.png"
+        _run(["npx", "remotion", "still", "Thumbnail", str(png), "--frame=30", f"--props={props}", "--log=error"],
+             root, timeout=600, what=f"thumbnail {variant}")
+        jpg = job / f"{name}.jpg"
+        Image.open(png).convert("RGB").save(jpg, quality=92)
+        png.unlink()
+        props.unlink()
+        out.append(jpg)
+    return out
+
+
+def stage_repair(cfg: dict, sc: dict, issues: str) -> None:
+    """Hand visual-QA failures back to the director (Claude Code) to fix the scenes before a re-render."""
+    from .agents import load_prompt
+    root = film_root(cfg)
+    prompt = load_prompt("film_repair", slug=sc["slug"], comp=composition_id(sc["slug"]), issues=issues, voice_at=VOICE_AT)
+    tools = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(npx tsc:*)", "Bash(npx remotion still:*)", "Bash(ls:*)", "Bash(mkdir:*)"]
+    cmd = ["claude", "-p", "--output-format", "json", "--model", fcfg(cfg)["director_model"],
+           "--permission-mode", "acceptEdits", "--allowedTools", *tools, "--no-session-persistence"]
+    print("  repair: sending QA issues back to the director", flush=True)
+    res = subprocess.run(cmd, input=prompt, cwd=str(root), capture_output=True, text=True, timeout=3600)
+    if res.returncode != 0:
+        raise RuntimeError(f"film repair failed: {(res.stderr or res.stdout)[-1500:]}")
+    _run(["npx", "tsc", "--noEmit", "-p", "."], root, timeout=600, what="type-check after repair")
 
 
 # ---------------------------------------------------------------- the builder (format contract)
@@ -370,30 +405,60 @@ def build_film(cfg: dict, topic: str | None = None, job: Path | None = None, *, 
     stage_sounds(cfg)
     _done(t0)
 
-    t0 = _stage("render (Remotion)")
-    raw = stage_render(cfg, film["composition"], job)
-    _done(t0)
-
-    t0 = _stage("loudness + speech check")
-    lufs, peak = master_audio(raw, job / "video.mp4")
-    raw.unlink(missing_ok=True)
-    cover = speech_coverage(job / "video.mp4", sc["lines"])
-    print(f"  {lufs:.1f} LUFS, peak {peak:.1f} dBFS, Whisper heard {cover:.0%} of the script")
-    if cover < MIN_SPEECH:
-        raise RuntimeError(f"speech check: Whisper heard only {cover:.0%} of the narration (music too loud?)")
-    _done(t0)
-
     write_srt(timings, job / "captions.srt")
     (job / "timing.json").write_text(json.dumps(
         [{"start": ln["start"] + VOICE_AT / FPS, "end": ln["end"] + VOICE_AT / FPS, "text": ln["text"]} for ln in timings["lines"]]))
+
+    def render_and_check() -> dict:
+        t0 = _stage("render (Remotion)")
+        raw = stage_render(cfg, film["composition"], job)
+        _done(t0)
+        t0 = _stage("loudness + speech check")
+        lufs, peak = master_audio(raw, job / "video.mp4")
+        raw.unlink(missing_ok=True)
+        cover = speech_coverage(job / "video.mp4", sc["lines"])
+        print(f"  {lufs:.1f} LUFS, peak {peak:.1f} dBFS, Whisper heard {cover:.0%} of the script")
+        if cover < MIN_SPEECH:
+            raise RuntimeError(f"speech check: Whisper heard only {cover:.0%} of the narration (music too loud?)")
+        _done(t0)
+        dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                                    str(job / "video.mp4")], capture_output=True, text=True).stdout.strip())
+        sc["title"] = make_title(sc["subject"], minutes_for(dur))
+        (job / "script.json").write_text(json.dumps(sc, indent=2, ensure_ascii=False))
+        meta = {"title": sc["title"], "description": sc["description"], "tags": sc["tags"], "format": "film",
+                "duration_s": round(dur, 1), "loudness_lufs": lufs, "peak_dbfs": peak, "speech_coverage": round(cover, 3)}
+        (job / "metadata.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+        return meta
+
+    meta = render_and_check()
     stage_thumbnail(cfg, film, sc, job)
 
-    dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
-                                str(job / "video.mp4")], capture_output=True, text=True).stdout.strip())
-    sc["title"] = make_title(sc["subject"], minutes_for(dur))
-    (job / "script.json").write_text(json.dumps(sc, indent=2, ensure_ascii=False))
-    meta = {"title": sc["title"], "description": sc["description"], "tags": sc["tags"], "format": "film",
-            "duration_s": round(dur, 1), "loudness_lufs": lufs, "speech_coverage": round(cover, 3)}
-    (job / "metadata.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
+    # QA now (cached in qa.json for the pipeline). Visual failures go back to the director once.
+    from .agents import qa_review
+    t0 = _stage("QA (checks + visual review + script check)")
+    qa = qa_review(cfg, job)
+    for attempt in range(int(fcfg(cfg).get("repairs", 1))):
+        visual = [ln for ln in qa["notes"].splitlines() if ln.startswith("[fail]") and "frame_" in ln]
+        if qa["verdict"] != "fail" or not visual:
+            break
+        stage_repair(cfg, sc, "\n".join(visual))
+        meta = render_and_check()
+        qa = qa_review(cfg, job, force=True)
+    print(f"  QA {qa['verdict']}")
+    _done(t0)
+
+    if (job / "video.mp4").exists() and qa["verdict"] != "fail":
+        t0 = _stage("Short (vertical cut of the cold open)")
+        from .cuts import make_short
+        try:
+            make_short(cfg, sc, timings, job)
+        except Exception as e:  # noqa: BLE001 - the film still ships without its Short
+            print(f"  short failed: {type(e).__name__}: {e}", flush=True)
+        _done(t0)
+    from .cuts import persist_film
+    rel = persist_film(cfg, job, sc)
+    if rel:
+        meta["release_url"] = rel
+        (job / "metadata.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
     print(f"\n✔ {job / 'video.mp4'}  {meta['title']!r}")
     return job

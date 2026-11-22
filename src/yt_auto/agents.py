@@ -324,6 +324,114 @@ def _popup_refs(job: Path, sc: dict) -> tuple[list[Path], list[str]]:
     return refs, sorted(set(missing))
 
 
+def _job_meta(job: Path) -> dict:
+    try:
+        return json.loads((Path(job) / "job.json").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _job_style(job: Path) -> str:
+    return _job_meta(job).get("style") or ""
+
+
+# ---------------------------------------------------------------- media checks (films, compilations, film cuts)
+TITLE_RE = re.compile(r".+ Explained in Under \d+ Minutes?$")
+
+
+def ebur128(video: Path) -> tuple[float | None, float | None]:
+    out = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(video), "-af", "ebur128=peak=true", "-f", "null", "-"],
+                         capture_output=True, text=True, timeout=600).stderr
+    i = re.findall(r"I:\s+(-?[\d.]+) LUFS", out)
+    p = re.findall(r"Peak:\s+(-?[\d.]+) dBFS", out)
+    return (float(i[-1]) if i else None), (float(p[-1]) if p else None)
+
+
+def black_gaps(video: Path, duration: float, min_s: float = 2.0) -> list[tuple[float, float]]:
+    """Fully black stretches longer than min_s (a dropped shot), ignoring the last 3 s fade-out."""
+    out = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(video), "-vf", f"blackdetect=d={min_s}:pic_th=0.98:pix_th=0.04",
+                          "-an", "-f", "null", "-"], capture_output=True, text=True, timeout=900).stderr
+    gaps = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", out)]
+    return [(a, b) for a, b in gaps if a < duration - 3]
+
+
+def palette_letterbox(video: Path, duration: float, n: int = 40, letterbox: bool = True) -> dict:
+    """Sampled frames: share of saturated non-red pixels (the look allows ONE red accent) and whether the
+    top/bottom letterbox bars are black. Calibrated on Enigma: 0.0% non-red, bars at 0.0 brightness."""
+    import numpy as np
+    W, H = 192, 108
+    worst, bars = 0.0, 0.0
+    for k in range(n):
+        t = duration * (k + 0.5) / n
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.2f}", "-i", str(video), "-frames:v", "1", "-vf",
+                              f"scale={W}:{H}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, timeout=60).stdout
+        if len(raw) != W * H * 3:
+            continue
+        a = np.frombuffer(raw, np.uint8).reshape(H, W, 3) / 255.0
+        mx, mn = a.max(2), a.min(2)
+        sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0)
+        hue = np.degrees(np.arctan2(np.sqrt(3) * (a[..., 1] - a[..., 2]), 2 * a[..., 0] - a[..., 1] - a[..., 2])) % 360
+        nonred = (sat > 0.35) & (mx > 0.25) & ~((hue < 25) | (hue > 335))
+        worst = max(worst, float(nonred.mean()))
+        if letterbox and t < duration - 13:   # the title card has no letterbox
+            bars = max(bars, float(a[:4].mean()), float(a[-4:].mean()))
+    return {"nonred_pct": round(worst * 100, 3), "bar_brightness": round(bars, 3)}
+
+
+def media_checks(job: Path, fmt: str, style: str, dur: float, add, facts: dict) -> None:
+    video = job / "video.mp4"
+    meta = json.loads((job / "metadata.json").read_text()) if (job / "metadata.json").exists() else {}
+    sc = json.loads((job / "script.json").read_text()) if (job / "script.json").exists() else {}
+    lufs, peak = ebur128(video)
+    facts.update({"lufs": lufs, "peak_dbfs": peak})
+    if lufs is None or not -15.5 <= lufs <= -13.0:
+        add("fail", f"loudness {lufs} LUFS (want -14 +/- 1)")
+    elif peak is not None and peak > -0.5:
+        add("fail", f"audio peak {peak} dBFS (clipping risk, want <= -0.5)")
+    else:
+        add("ok", f"loudness {lufs} LUFS, peak {peak} dBFS")
+    cov = meta.get("speech_coverage")
+    if fmt == "film":
+        if cov is None:
+            add("warn", "speech coverage not measured")
+        else:
+            add("ok" if cov >= 0.95 else "warn" if cov >= 0.90 else "fail", f"Whisper heard {cov:.0%} of the narration")
+    gaps = black_gaps(video, dur)
+    facts["black_gaps"] = gaps
+    add("fail" if gaps else "ok", f"black gaps > 2 s: {gaps}" if gaps else "no black gaps")
+    pl = palette_letterbox(video, dur, letterbox=fmt == "film")
+    facts.update(pl)
+    add("ok" if pl["nonred_pct"] < 0.3 else "warn" if pl["nonred_pct"] < 1.5 else "fail",
+        f"colour other than the red accent on {pl['nonred_pct']}% of the worst frame")
+    if fmt == "film":
+        add("ok" if pl["bar_brightness"] < 0.04 else "fail", f"letterbox bars brightness {pl['bar_brightness']}")
+    title, desc = meta.get("title", ""), meta.get("description", "")
+    if fmt in ("film", "compilation"):
+        add("ok" if TITLE_RE.match(title) and len(title) <= 100 else "fail", f"title pattern: {title!r}")
+        srcs = len(re.findall(r"^• .+: https?://", desc, re.M))
+        add("ok" if srcs >= 2 else "warn" if srcs == 1 else "fail", f"{srcs} checked source(s) credited")
+        add("ok" if re.search(r"(^|\s)#\w", desc) else "warn", "hashtags in description")
+    else:
+        add("ok" if title and len(title) <= 100 else "fail", f"short title: {title!r}")
+        add("ok" if "Full story" in desc else "warn", "description links the full film")
+
+
+SCRIPT_QA_SCHEMA = {
+    "type": "object", "required": ["verdict", "issues"],
+    "properties": {"verdict": {"enum": ["pass", "warn", "fail"]},
+                   "issues": {"type": "array", "items": {"type": "object", "required": ["severity", "problem"],
+                              "properties": {"severity": {"enum": ["warn", "fail"]}, "problem": {"type": "string"}}}}},
+}
+
+
+def script_check(cfg: dict, job: Path) -> dict:
+    sc = json.loads((job / "script.json").read_text())
+    meta = json.loads((job / "metadata.json").read_text()) if (job / "metadata.json").exists() else {}
+    text = "\n".join(f"{i + 1}. {ln['text']}" for i, ln in enumerate(sc.get("lines", [])))
+    prompt = load_prompt("qa_script", title=meta.get("title", ""), description=meta.get("description", ""), script=text)
+    return _claude(prompt, cfg, SCRIPT_QA_SCHEMA, timeout=600)
+
+
 def _job_format(job: Path) -> str:
     try:
         return json.loads((Path(job) / "job.json").read_text()).get("format") or "short"
@@ -339,7 +447,9 @@ def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
     sc = json.loads((job / "script.json").read_text()) if (job / "script.json").exists() else {}
     timing = json.loads((job / "timing.json").read_text()) if (job / "timing.json").exists() else []
     fmt = _job_format(job)
+    style = _job_style(job)
     film = fmt == "film"
+    longform = fmt in ("film", "compilation")
     if not sc:
         add("fail", "script.json missing")
     if not video.exists() or video.stat().st_size < 10_000:
@@ -355,12 +465,14 @@ def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
     facts["duration_s"] = round(dur, 2)
     vs = [s for s in info.get("streams", []) if s.get("codec_type") == "video"]
     aus = [s for s in info.get("streams", []) if s.get("codec_type") == "audio"]
-    lo, hi = (100, 240) if film else (15, 60)
+    lo, hi = (100, 240) if film else (300, 900) if fmt == "compilation" else (15, 60)
     if not lo <= dur <= hi:
         add("fail", f"duration {dur:.1f}s outside {lo}-{hi}s")
     else:
         add("ok", f"duration {dur:.1f}s")
-    if timing:
+    if fmt == "compilation" or style == "film-cut":
+        pass   # timing.json is captions, not the cut (chapters / end card / cliffhanger pause)
+    elif timing:
         expect = timing[-1]["end"] + (13.0 if film else 0.5)   # films end on a 12 s title card
         facts["expected_duration_s"] = round(expect, 2)
         if abs(dur - expect) > 1.5:
@@ -374,7 +486,7 @@ def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
     else:
         w, h = vs[0].get("width"), vs[0].get("height")
         facts["size"] = f"{w}x{h}"
-        add("ok" if (w, h) == ((1920, 1080) if film else (1080, 1920)) else "fail", f"resolution {w}x{h}")
+        add("ok" if (w, h) == ((1920, 1080) if longform else (1080, 1920)) else "fail", f"resolution {w}x{h}")
     if not aus:
         add("fail", "no audio stream")
     else:
@@ -400,6 +512,11 @@ def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
         sev = "ok" if ov >= 0.85 else "warn" if ov >= 0.60 else "fail"
         add(sev, f"captions cover {ov:.0%} of script words")
 
+    if longform or style == "film-cut":
+        try:
+            media_checks(job, fmt, style, dur, add, facts)
+        except Exception as e:  # noqa: BLE001
+            add("warn", f"media checks failed to run: {type(e).__name__}: {e}"[:300])
     refs, missing = _popup_refs(job, sc)
     if missing:
         add("fail", "missing popup images: " + ", ".join(missing))
@@ -450,7 +567,7 @@ def _film_frame_context(frames, timing) -> str:
 
 
 def vision_check(cfg: dict, job: Path, frames, sc: dict, timing: list) -> dict:
-    if _job_format(job) == "film":
+    if _job_format(job) in ("film", "compilation") or _job_style(job) == "film-cut":
         prompt = load_prompt("qa_film_vision", frames="\n".join(f"- {p.name}" for p, _ in frames),
                              frame_context=_film_frame_context(frames, timing))
         fdir = frames[0][0].parent
@@ -484,11 +601,20 @@ def combine_qa(checks: list[tuple[str, str]], vision: dict | None, vision_error:
     return {"verdict": verdict, "notes": "\n".join(notes)}
 
 
-def qa_review(cfg: dict, job: Path) -> dict:
-    """Deterministic checks + a read-only claude look at ~6 frames. Writes job/qa.json."""
+def qa_review(cfg: dict, job: Path, force: bool = False) -> dict:
+    """Deterministic checks + a read-only claude look at frames (+ a script check for long-form).
+    Writes job/qa.json; a qa.json newer than video.mp4 is reused unless force."""
     job = Path(job)
+    cached = job / "qa.json"
+    if not force and cached.exists() and (job / "video.mp4").exists() and \
+            cached.stat().st_mtime >= (job / "video.mp4").stat().st_mtime:
+        old = json.loads(cached.read_text())
+        if old.get("verdict"):
+            return {"verdict": old["verdict"], "notes": old.get("notes", "")}
+    fmt, style = _job_format(job), _job_style(job)
+    longform = fmt in ("film", "compilation")
     checks, facts = deterministic_checks(job)
-    vision, verr = None, None
+    vision, verr, script = None, None, None
     if any(s == "fail" for s, m in checks if "video.mp4" in m or "ffprobe" in m):
         verr = "skipped (no playable video)"
     else:
@@ -496,14 +622,26 @@ def qa_review(cfg: dict, job: Path) -> dict:
             sc = json.loads((job / "script.json").read_text())
             timing = json.loads((job / "timing.json").read_text()) if (job / "timing.json").exists() else []
             dur = facts.get("duration_s", 20)
-            frames = extract_frames(job, dur, n=16) if _job_format(job) == "film" else extract_frames(job, dur)
+            n = 24 if longform else 8 if style == "film-cut" else None
+            frames = extract_frames(job, dur, n=n) if n else extract_frames(job, dur)
             vision = vision_check(cfg, job, frames, sc, timing)
+            when = {p.name: t for p, t in frames}
+            for i in (vision or {}).get("issues", []):
+                if i.get("frame") in when:
+                    i["frame"] = f"{i['frame']} @ {when[i['frame']]:.1f}s"
         except Exception as e:
             verr = f"{type(e).__name__}: {str(e)[:300]}"
+    if longform:
+        try:
+            script = script_check(cfg, job)
+            for i in script.get("issues", []):
+                checks.append((i.get("severity", "warn"), f"script: {i.get('problem', '')}"))
+        except Exception as e:  # noqa: BLE001
+            checks.append(("warn", f"script check unavailable: {type(e).__name__}: {str(e)[:200]}"))
     result = combine_qa(checks, vision, verr)
-    (job / "qa.json").write_text(json.dumps({**result, "checks": [{"severity": s, "check": m} for s, m in checks],
-                                             "facts": facts, "vision": vision, "at": time.time()},
-                                            indent=2, ensure_ascii=False))
+    cached.write_text(json.dumps({**result, "checks": [{"severity": s, "check": m} for s, m in checks],
+                                  "facts": facts, "vision": vision, "script": script, "at": time.time()},
+                                 indent=2, ensure_ascii=False, default=str))
     return result
 
 

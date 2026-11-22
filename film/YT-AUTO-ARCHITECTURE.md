@@ -200,6 +200,25 @@ The Remotion project lives in the repo at `film/` (`~/my-film` is a symlink to i
 - Description: 1–2 sentence summary, `Sources:` with each checked URL, a one-line disclosure (code-made
   animation/music, synthetic narration), then 3–5 hashtags.
 
+**Schedule (no approval, `auto_approve: true`):** films on `publish.build_days` (Mon/Wed/Fri/Sun nights)
+publish at 17:00; each film's vertical Short (`cuts.make_short`: cold open to the cliffhanger + "full story on
+the channel", its own Notion row, Source `film-cut`, Series = film title) publishes the next day at 12:00 and
+never before its film. The first build night of a month with 4 unused Live films adds an 8-10 min compilation
+(`cuts.build_compilation`: voiced intro, chapter cards, films without title cards, chapters in the description).
+On CI every film is persisted: its code is committed back and video/script/thumbnails go to release `film-<slug>`.
+
+**QA gates (strict, since nothing waits for a human):** loudness -14±1 LUFS and peak ≤ -0.5 dB, Whisper ≥ 95%
+(warn 90-95, fail below), no black gaps > 2 s, no colour but the red accent, letterbox bars, title pattern,
+≥ 2 checked sources, hashtags; a 24-frame visual review against the red-placement/framing rules (a visual fail
+goes back to the director once for a repair + re-render); a Claude script check for false or defamatory claims
+and policy problems. Any fail = not published.
+
+**Thumbnails:** 3 per film (circle / face / case-file stamp). A is set on upload; B and C are for Studio's
+Test & Compare (no API: add them by hand; the push notification links them).
+
+**Free helper model first** (`llm.helper.tasks`): research, analyze, editors, compilation plan (validated, else
+Claude). Script, director, repair, visual QA and the script check stay on Claude.
+
 QA (`agents.qa_review`) knows films: 1920×1080, 100–240 s, 16 frames checked against `prompts/qa_film_vision.md`.
 Branding: `tools/branding.py` renders the avatar and banner from `film/src/films/brand/Brand.tsx`.
 

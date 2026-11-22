@@ -44,6 +44,12 @@ Also return:
   (e.g. "Every system has a flaw."), accent = one short red line (e.g. "Go looking for it.").
 - thumbnail: word = ONE word, max 10 letters, the subject or its hook ("ENIGMA"); line = max 4 words
   that create curiosity ("THE TINY FLAW").
+- thumbnail_alts: two MORE thumbnail options, each a different angle for A/B testing (e.g. a striking
+  number "159 QUINTILLION" / "SETTINGS"; a name or a question). Same limits as thumbnail.
+- short_hook: the headline for a vertical teaser Short made from the cold open, 4-9 words, pure
+  curiosity, no clickbait lies ("The machine Germany thought was unbreakable").
+- short_end_line: the 1-based number of the line your cold open's cliffhanger is on (the Short ends
+  there with "full story on the channel"); it must finish within about 50 seconds of narration.
 - sources: 2-5 real, stable, public pages you are certain exist (Wikipedia articles, museum,
   university or official pages). Exact URLs only: every link is checked and broken ones are dropped.
 - hashtags: 3-5 short hashtags without '#' (subject first, then the field: "Enigma", "AlanTuring",

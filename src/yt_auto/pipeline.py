@@ -148,7 +148,7 @@ def youtube_url(video_id: str, fmt: str | None) -> str:
     return f"https://youtube.com/shorts/{video_id}" if fmt in (None, "short") else f"https://youtu.be/{video_id}"
 
 
-LABELS = {"short": "Short", "film": "Film", "long": "Video"}
+LABELS = {"short": "Short", "film": "Film", "long": "Video", "compilation": "Compilation"}
 
 
 def default_format(cfg: dict) -> str:
@@ -224,6 +224,15 @@ def next_slot(now: datetime, slots: list[str], tz: str | ZoneInfo, taken, min_le
 
 # ---------------------------------------------------------------- publish
 
+def _parent_publish_at(row: dict, rows: list[dict], tz: ZoneInfo) -> datetime | None:
+    """When the film a Short was cut from goes public (its row's Title == the Short's Series)."""
+    parent = (row.get("Series") or "").strip()
+    for r in rows:
+        if r is not row and (r.get("Title") or "").strip() == parent and r.get("Format") in ("film", None):
+            return _as_dt(r.get("Publish At"), tz)
+    return None
+
+
 def publish(cfg: dict, nc, now: datetime | None = None) -> dict:
     pc = pcfg(cfg)
     tz = ZoneInfo(pc["timezone"])
@@ -233,6 +242,7 @@ def publish(cfg: dict, nc, now: datetime | None = None) -> dict:
     pending = nc.query("Needs Approval")
     rejected = [r for r in pending if r.get("Reject")]
     approved = [r for r in pending if r.get("Approve") and not r.get("Reject")]
+    approved.sort(key=lambda r: r.get("Source") == "film-cut")   # films first, then the Shorts cut from them
     yt = _youtube_ready() if (approved or any(r.get("Video ID") for r in rejected)) else None
 
     for r in rejected:
@@ -268,7 +278,16 @@ def publish(cfg: dict, nc, now: datetime | None = None) -> dict:
                             f"no YouTube preview upload and rendered video missing ({job / 'video.mp4'}); "
                             "if it was rendered on CI, download the run artifact and upload it by hand")
                     vid = yt.upload(job)
-                slot = next_slot(now, pc["slots"], tz, taken, pc["min_lead_hours"]) if pc["slots"] else None
+                slots = (pc.get("slots_by_format") or {}).get((r.get("Format") or "short").lower()) or pc["slots"]
+                start = now
+                if r.get("Source") == "film-cut":   # a film's Short goes out after its film (it links to it)
+                    parent_at = _parent_publish_at(r, [*scheduled, *pending], tz)
+                    if parent_at is None:
+                        log.info("short %r waits for its film to be scheduled", title)
+                        continue
+                    start = max(now, parent_at + timedelta(hours=float(pc.get("short_after_film_hours", 12))) -
+                                timedelta(hours=pc["min_lead_hours"]))
+                slot = next_slot(start, slots, tz, taken, pc["min_lead_hours"]) if slots else None
                 yt.schedule(vid, slot)
                 vals = {"Video ID": vid, "YouTube URL": youtube_url(vid, r.get("Format"))}
                 if slot is None:   # no slots configured: public right away
@@ -276,6 +295,7 @@ def publish(cfg: dict, nc, now: datetime | None = None) -> dict:
                     summary["live"] += 1
                 else:
                     taken.append(slot)
+                    r["Publish At"] = slot   # so this pass's Shorts can follow their film
                     vals.update({"Status": "Scheduled", "Publish At": slot})
                     summary["scheduled"] += 1
                 nc.update_row(r["_id"], vals)
@@ -442,6 +462,10 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
                 msg += "\nVideo is a 7-day artifact of the CI run (tap to open)."
             if not auto:
                 msg += "\nTick Approve (or Reject + Feedback) in Notion."
+            if fmt == "film" and (job / "thumbnail_b.jpg").exists():
+                rel = json.loads((job / "metadata.json").read_text()).get("release_url")
+                msg += ("\nThumbnail test: in Studio -> the video -> Thumbnail -> Test & compare, add B and C"
+                        + (f" from {rel}" if rel else f" ({job / 'thumbnail_b.jpg'})"))
             if notion:
                 msg += f"\nNotion: {notion}"
             actions = [("Notion", notion)] if notion and (pv.get("studio") or pv.get("run")) else None
@@ -450,6 +474,8 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
         else:
             notify.send(f"{label} failed QA", f"{title}: {qa['notes']}"[:400], click=row.get("_url"), tags=["x"])
         log.info("%s -> %s (QA %s)", title, vals["Status"], qa["verdict"])
+        if ok and fmt == "film":
+            _film_extras(cfg, nc, job, title, vals, pv)
         return {**row, **vals}
     except Exception as e:
         tb = traceback.format_exc()
@@ -470,6 +496,36 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
         notify.send(f"{label} build hit a network hiccup, retrying tomorrow" if transient else f"{label} build failed",
                     f"{topic or 'auto topic'}: {e}"[:400], click=row.get("_url"), tags=["x"])
         return {**row, **vals, "_error": "transient" if transient else "bug"}
+
+
+def _film_extras(cfg: dict, nc, job: Path, title: str, film_vals: dict, pv: dict) -> None:
+    """After a film passes: QA + preview its vertical Short and add it as its own row (Source film-cut,
+    Series = the film's title; it follows the film's approval and publishes after it)."""
+    short = job / "short"
+    if not (short / "video.mp4").exists():
+        return
+    try:
+        from .cuts import finish_short
+        finish_short(short, youtube_url(pv["video_id"], "film") if pv.get("video_id") else None)
+        meta = json.loads((short / "metadata.json").read_text())
+        qa = _qa(cfg, short)
+        ok = qa["verdict"] != "fail"
+        vals = {"Title": meta["title"], "Status": "Needs Approval" if ok else "Failed", "Format": "short",
+                "Source": "film-cut", "Series": title, "Job": job_ref(cfg, short), "QA": qa["verdict"],
+                "QA Notes": qa["notes"], "Duration (s)": meta.get("duration_s"),
+                "Hook": meta["title"], "Script": " ".join(json.loads((short / "script.json").read_text()).get(
+                    "lines", [{}])[0].get("text", "").split())[:1900]}
+        if ok:
+            spv = preview(cfg, short)
+            vals["QA Notes"] = f"{qa['notes']}\n\n{spv['note']}".strip()
+            if spv.get("video_id"):
+                vals.update({"Video ID": spv["video_id"], "YouTube URL": youtube_url(spv["video_id"], "short")})
+            if film_vals.get("Approve"):
+                vals["Approve"] = True
+        nc.create_row(vals)
+        log.info("short for %r -> %s (QA %s)", title, vals["Status"], qa["verdict"])
+    except Exception as e:  # noqa: BLE001 - the film is fine without its Short
+        log.error("short for %r failed: %s", title, e)
 
 
 def _ensure_schema(nc) -> None:
@@ -528,8 +584,48 @@ def nightly_status(results: list[dict]) -> str | None:
     return None
 
 
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def build_day(cfg: dict, now: datetime | None = None) -> bool:
+    """publish.build_days: the Toronto weekdays a nightly builds on (default: every day). The nightly runs
+    at ~02:30, so 'mon' means the film is made Monday night-early-morning and published Monday."""
+    days = [d.lower()[:3] for d in ((cfg.get("publish") or {}).get("build_days") or DAYS)]
+    now = now or datetime.now(ZoneInfo(pcfg(cfg)["timezone"]))
+    return DAYS[now.weekday()] in days
+
+
+def compilation_due(cfg: dict, nc, now: datetime | None = None) -> list[dict] | None:
+    """Films for this month's compilation, or None. Due once per calendar month when at least
+    compilation.films Live films have not been in a compilation yet."""
+    c = cfg.get("compilation") or {}
+    if not c.get("enabled", True):
+        return None
+    n = int(c.get("films", 4))
+    tz = ZoneInfo(pcfg(cfg)["timezone"])
+    now = now or datetime.now(tz)
+    rows = nc.query(["Needs Approval", "Scheduled", "Live", "Failed"])
+    comps = [r for r in rows if (r.get("Format") or "") == "compilation"]
+    if any((_as_dt(r.get("Publish At"), tz) or now).strftime("%Y%m") == now.strftime("%Y%m") or
+           (r.get("Topic") or "").startswith(f"comp:{now:%Y%m}") for r in comps):
+        return None
+    used = {s for r in comps for s in (r.get("Topic") or "").split(":")[-1].split(",") if s}
+    films = []
+    for r in rows:
+        if r.get("Format") == "film" and r.get("Status") == "Live":
+            job = (r.get("Job") or "")
+            slug = re.sub(r"^\d{8}-|-film$", "", Path(job).name)
+            if slug and slug not in used:
+                films.append({"slug": slug, "subject": r.get("Title") or slug})
+    return films[-n:] if len(films) >= n else None
+
+
 def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
     _ensure_schema(nc)
+    if count is None and not build_day(cfg):
+        log.info("nightly: not a build day (publish.build_days); publishing only")
+        publish(cfg, nc)
+        return []
     count = count or _cadence(cfg, nc, per_night(cfg))
     queue = nc.query("Idea")
     queue.sort(key=lambda r: r.get("Source") != "follow-up")   # winners' follow-ups first (stable sort)
@@ -545,6 +641,20 @@ def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
         log.warning("could not read past titles: %s", e)
         past = []
     results = [produce(cfg, nc, r, guidance, feedback, build, past, recent) for r in ideas]
+    if build is None:
+        try:
+            films = compilation_due(cfg, nc)
+        except Exception as e:  # noqa: BLE001
+            log.warning("compilation check failed: %s", e)
+            films = None
+        if films:
+            from .cuts import build_compilation
+            row = nc.create_row({"Title": "(monthly compilation, building...)", "Status": "Idea", "Source": "auto",
+                                 "Format": "compilation",
+                                 "Topic": f"comp:{datetime.now(ZoneInfo(pcfg(cfg)['timezone'])):%Y%m}:" +
+                                          ",".join(f["slug"] for f in films)})
+            results.append(produce(cfg, nc, row, guidance, feedback,
+                                   lambda c, t, j, **kw: build_compilation(c, films, j), past, recent))
     publish(cfg, nc)
     return results
 

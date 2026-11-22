@@ -11,6 +11,13 @@ $frames
 Each frame's timestamp and the narration line being spoken at that moment:
 $frame_context
 
+This video publishes automatically if you pass it, so judge it against the channel's own rules:
+- RED ACCENT PLACEMENT: a red marker circle must fit the thing it circles (not slice through it or its
+  neighbours, not spill off a paper or board, not circle empty space); labels and counters sit on or
+  next to what they describe; no stray red dots or lines; red only on what matters.
+- FRAMING: in close emotional shots the stick figure should be a real presence, not a speck; text never
+  sits on top of other text or a face.
+
 Look for real, visible problems only:
 - text overlapping other text, or text/markers clipped by the frame edge or the letterbox bars
 - a red marker circle that slices through the thing next to it or floats around nothing

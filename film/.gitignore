@@ -12,3 +12,4 @@ tools/voice/audition
 
 # the channel narrator reference (synthetic, Kokoro bm_lewis) is needed to build films
 !tools/voice/refs/narrator.wav
+public/cuts

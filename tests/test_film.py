@@ -90,6 +90,50 @@ def test_qa_film_duration_and_resolution(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(agents, "ffprobe", lambda v: {"format": {"duration": "163.0"}, "streams": [
         {"codec_type": "video", "width": 1920, "height": 1080}, {"codec_type": "audio"}]})
     monkeypatch.setattr(agents, "volumedetect", lambda v: {"mean_volume": -18.0, "max_volume": -1.2})
+    monkeypatch.setattr(agents, "media_checks", lambda *a: a[4]("ok", "media checks stubbed"))
     checks, facts = agents.deterministic_checks(tmp_path)
     fails = [m for s, m in checks if s == "fail"]
     assert not fails, fails
+
+
+# ---------------------------------------------------------------- schedule, Shorts, compilations
+from datetime import datetime as _dt
+from zoneinfo import ZoneInfo as _Z
+
+
+def test_build_days():
+    cfg = {"publish": {"timezone": "America/Toronto", "build_days": ["mon", "wed", "fri", "sun"]}}
+    tz = _Z("America/Toronto")
+    assert pipeline.build_day(cfg, _dt(2026, 11, 23, 2, 30, tzinfo=tz))       # Monday
+    assert not pipeline.build_day(cfg, _dt(2026, 11, 24, 2, 30, tzinfo=tz))   # Tuesday
+    assert pipeline.build_day({"publish": {}}, _dt(2026, 11, 24, 2, 30, tzinfo=tz))   # default: every day
+
+
+def test_short_end_line_prefers_writer_cliffhanger_within_limit():
+    from yt_auto import cuts
+    lines = [{"text": f"l{i}", "pause": 1.4 if i == 10 else 0.5} for i in range(1, 15)]
+    tim = {"lines": [{"startFrame": i * 100, "endFrame": i * 100 + 80} for i in range(14)]}
+    assert cuts.short_end_line({"lines": lines, "short_end_line": 10}, tim) == 10
+    # asked for a line past ~55 s -> falls back to the last fitting line with a long pause, else the last fitting
+    tim_long = {"lines": [{"startFrame": i * 200, "endFrame": i * 200 + 150} for i in range(14)]}
+    n = cuts.short_end_line({"lines": lines, "short_end_line": 14}, tim_long)
+    assert 1 <= n <= 8
+
+
+def test_short_waits_for_and_follows_its_film():
+    tz = _Z("America/Toronto")
+    film = {"Title": "The Enigma Machine Explained in Under 3 Minutes", "Format": "film",
+            "Publish At": _dt(2026, 11, 23, 17, 0, tzinfo=tz)}
+    short = {"Series": film["Title"], "Format": "short", "Source": "film-cut"}
+    assert pipeline._parent_publish_at(short, [film], tz) == film["Publish At"]
+    assert pipeline._parent_publish_at(short, [], tz) is None
+
+
+def test_baseline_compares_like_with_like():
+    from yt_auto import analytics
+    old_short = {"_id": "a", "Format": "short", "Publish At": "2026-11-01", "Views 72h": 900}
+    cut = {"_id": "b", "Format": "short", "Source": "film-cut", "Publish At": "2026-11-20", "Views 72h": 50}
+    film = {"_id": "c", "Format": "film", "Publish At": "2026-11-21", "Views 72h": 300}
+    me = {"_id": "d", "Format": "short", "Source": "film-cut", "Publish At": "2026-11-25"}
+    assert analytics._kind(me) == analytics._kind(cut) != analytics._kind(old_short)
+    assert analytics._kind(film) != analytics._kind(me)

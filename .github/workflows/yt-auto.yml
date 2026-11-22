@@ -72,7 +72,9 @@ jobs:
     needs: gate
     if: ${{ !cancelled() && (needs.gate.result == 'skipped' || needs.gate.outputs.go == 'true') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 330          # a film: voice ~10 min + director up to 150 + render ~30 (6 h job cap)
+    timeout-minutes: 330
+    permissions:
+      contents: write          # films commit their generated code back + attach renders to releases (cuts.persist_film)          # a film: voice ~10 min + director up to 150 + render ~30 (6 h job cap)
     env:
       TASK: ${{ inputs.task || (github.event.schedule == '30 7 * * *' && 'nightly') || (github.event.schedule == '15 7 * * *' && 'preflight') || (github.event.schedule == '0 15 * * 0' && 'weekly') || 'publish' }}
       YT_AUTO_CONFIG_DIR: ${{ github.workspace }}/.ci-config
@@ -80,6 +82,7 @@ jobs:
       RVC_DEVICE: cpu            # no GPU on the runner (tools/rvc/rvc_convert.py)
       NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      GH_TOKEN: ${{ github.token }}   # gh release create/upload/download for films
     steps:
       - uses: actions/checkout@v4
 

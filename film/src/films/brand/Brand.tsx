@@ -83,10 +83,58 @@ export const Banner: React.FC = () => {
 };
 
 // Per-video thumbnail: one big word circled in red, one short red line, the Hero looking at it.
-export type ThumbProps = {word: string; line?: string; brow?: number};
-export const Thumbnail: React.FC<ThumbProps> = ({word, line = '', brow = 0.6}) => {
+export type ThumbProps = {word: string; line?: string; brow?: number; variant?: 'circle' | 'face' | 'stamp'};
+// Three layouts for YouTube's thumbnail Test & Compare:
+//   circle — the word circled in red, Hero looking at it (default)
+//   face   — huge worried head on the left, red word + white line on the right
+//   stamp  — the word on an evidence sheet with a red stamped line across it
+export const Thumbnail: React.FC<ThumbProps> = ({word, line = '', brow = 0.6, variant = 'circle'}) => {
   applyLook(LOOKS.documentary);
   const w = word.toUpperCase();
+  if (variant === 'face') {
+    const size = Math.min(210, 600 / Math.max(1, w.length * 0.47));
+    return (
+      <Frame w={1280} h={720}>
+        <Glow x={250} y={120} r={700} color={C.lamp} opacity={0.35} />
+        <Head cx={330} cy={400} r={250} brow={brow + 0.2} />
+        <text x={940} y={360} textAnchor="middle" fontFamily={LOOK.display} fontSize={size} fill={C.accent} letterSpacing={3}
+          style={{filter: `drop-shadow(0 0 18px ${C.accent}88)`}}>
+          {w}
+        </text>
+        {line ? (
+          <text x={940} y={480} textAnchor="middle" fontFamily={LOOK.font} fontWeight={700} fontSize={58} fill={C.white} letterSpacing={3}>
+            {line.toUpperCase()}
+          </text>
+        ) : null}
+      </Frame>
+    );
+  }
+  if (variant === 'stamp') {
+    const size = Math.min(170, 560 / Math.max(1, w.length * 0.5));
+    return (
+      <Frame w={1280} h={720}>
+        <Glow x={640} y={60} r={900} color={C.lamp} opacity={0.4} />
+        <g transform="rotate(-3 560 380)">
+          <rect x={170} y={110} width={780} height={520} fill="#CFCFD2" />
+          <text x={220} y={190} fontFamily={LOOK.font} fontWeight={700} fontSize={36} fill="#3A3A3E" letterSpacing={4}>
+            CASE FILE
+          </text>
+          <text x={560} y={400} textAnchor="middle" fontFamily={LOOK.mono} fontWeight={700} fontSize={size} fill="#1A1A1C">
+            {w}
+          </text>
+          {line ? (
+            <g transform="rotate(-8 560 520)">
+              <rect x={260} y={470} width={600} height={100} fill="none" stroke={C.accent} strokeWidth={9} />
+              <text x={560} y={542} textAnchor="middle" fontFamily={LOOK.display} fontSize={62} fill={C.accent} letterSpacing={4}>
+                {line.toUpperCase()}
+              </text>
+            </g>
+          ) : null}
+        </g>
+        <Hero x={1110} y={800} scale={1.3} pose="stand" facing={-1} brow={brow} mouth={-0.3} />
+      </Frame>
+    );
+  }
   const size = Math.min(230, 640 / Math.max(1, w.length * 0.47));
   const textW = w.length * size * 0.47;
   const cx = 420;

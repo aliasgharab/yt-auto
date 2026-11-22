@@ -61,6 +61,7 @@ DEFAULTS = {
     "loser_ratio": 0.3,
     "max_followups": 3,        # per series (topic)
     "hook_min_view_pct": 60.0,
+    "hook_min_view_pct_long": 40.0,   # films / compilations: average % viewed below this = weak opening
     "hook_min_engaged_ratio": 0.5,
     "drop_ratio": 0.3,         # "down 70 %+" vs the median ...
     "drop_streak": 3,          # ... for this many Shorts in a row -> ntfy
@@ -166,11 +167,17 @@ def any_due(rows: list[dict], now: datetime) -> bool:
 
 # ---------------------------------------------------------------- classification
 
+def _kind(r: dict) -> tuple[str, bool]:
+    return (r.get("Format") or "short"), r.get("Source") == "film-cut"
+
+
 def baseline(rows: list[dict], row: dict, n: int = 20) -> list[float]:
-    """72 h views of the last n Shorts published before `row` (excluding it)."""
+    """72 h views of the last n videos of the same kind published before `row` (excluding it): films vs
+    films, compilations vs compilations, Shorts cut from films vs those Shorts (not the old Shorts)."""
     me = published_at(row) or datetime.max.replace(tzinfo=timezone.utc)
+    kind = _kind(row)
     prev = [(published_at(r), cp_views(r, "72h")) for r in rows
-            if r.get("_id") != row.get("_id") and (r.get("Format") or "short") == "short"]
+            if r.get("_id") != row.get("_id") and _kind(r) == kind]
     prev = sorted((p, v) for p, v in prev if p is not None and v is not None and p < me)
     return [v for _, v in prev[-n:]]
 
@@ -190,12 +197,12 @@ def classify(views: float | None, base: list[float], a: dict | None = None) -> t
 
 
 def hook_problem(avg_view_pct: float | None, engaged: float | None, views: float | None,
-                 a: dict | None = None) -> bool | None:
+                 a: dict | None = None, fmt: str | None = None) -> bool | None:
     """Day-4 gate: low retention or low engaged/views means the hook lost people. None = no data."""
     a = a or DEFAULTS
     checks = []
     if avg_view_pct is not None:
-        checks.append(avg_view_pct < a["hook_min_view_pct"])
+        checks.append(avg_view_pct < (a["hook_min_view_pct"] if fmt in (None, "short") else a["hook_min_view_pct_long"]))
     if engaged is not None and views:
         checks.append(engaged / views < a["hook_min_engaged_ratio"])
     return any(checks) if checks else None
@@ -474,7 +481,7 @@ def sweep(cfg: dict, nc, yt, now: datetime | None = None, due_only: bool = False
                          "Engaged Views": d.get("engaged_views"), "Shares": d.get("shares"),
                          "Subs Gained": d.get("subs_gained")})
             cps["deep_at"] = now.astimezone(timezone.utc).isoformat(timespec="minutes")
-            hp = hook_problem(d.get("avg_view_pct"), d.get("engaged_views"), d.get("views"), a)
+            hp = hook_problem(d.get("avg_view_pct"), d.get("engaged_views"), d.get("views"), a, r.get("Format"))
             if hp is not None:
                 vals["Hook Check"] = "weak hook" if hp else "ok"
             summary["deep"] += 1

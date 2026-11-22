@@ -12,6 +12,12 @@ channel:
 # or short (Hiro/Baymax dialogue Shorts, duo.py). A row's own Format column overrides this.
 default_format: film
 
+# Monthly long-form: the first build night of a month with >= `films` unused Live films makes an 8-10 min
+# compilation (src/yt_auto/cuts.py): voiced intro, chapter cards, the films without their title cards.
+compilation:
+  enabled: true
+  films: 4
+
 # Films: 2-3 min narrated documentaries made in film/ (Remotion; rules in film/CLAUDE.md)
 film:
   dir: film
@@ -25,7 +31,8 @@ llm:
   model: sonnet
   helper:                    # FREE model first for these tasks, Claude only as fallback (src/yt_auto/helper.py)
     model: opencode/deepseek-v4.1-flash-free
-    tasks: [editor, story_editor, research, analyze]   # script writer + vision QA stay on Claude
+    tasks: [editor, story_editor, research, analyze, compilation]   # film script, director, repair, vision QA and the
+                             # pre-publish script check stay on Claude (quality gates; the free model can't see images)
 
 tts:
   voice: am_michael          # try: am_michael, am_adam, bm_george, af_heart, bf_emma
@@ -93,9 +100,16 @@ output_dir: out
 # Runtime orchestration (yt-auto nightly / publish / stats / research / analyze; see deploy/systemd)
 publish:
   timezone: America/Toronto
-  slots: ["17:00"]           # Toronto: one film a day, early evening (Shorts used 08:00, 12:00, 15:30, 18:30, 21:00)
+  slots: ["17:00"]           # fallback for formats without their own slots below
+  slots_by_format:           # Toronto times. Film day D 17:00 -> its Short day D+1 12:00 -> every day has an upload
+    film: ["17:00"]
+    compilation: ["11:00"]
+    short: ["12:00"]
+  short_after_film_hours: 12  # a film's Short (Source film-cut) never goes out before film + this (it links to the film)
+  build_days: [mon, wed, fri, sun]   # 4 films a week (user, 2026-11-22); other nights only publish
   min_lead_hours: 1           # never schedule closer than this to "now"
-  auto_approve: true          # nightly ticks Approve itself unless QA fails; ntfy says it is done (user, 2026-11-21)
+  auto_approve: true          # no human approval: anything that passes QA publishes (user, 2026-11-22). QA is strict:
+                              # media checks, visual review + one automatic repair, script check (agents.qa_review)
   shorts_per_night: 5         # Shorts format: max under the 10,000 units/day API quota (~1,650 per Short)
   videos_per_night: 1         # what nightly builds (default_format). Films: ~1 h each on a free runner; upload
                               # 1,600 + captions 400 + thumbnail 50 + schedule 50 quota units
