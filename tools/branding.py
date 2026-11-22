@@ -1,4 +1,4 @@
-"""Hidden Flaw channel branding: avatar + banner images, channel description and keywords.
+"""Errata channel branding: avatar + banner images, channel description and keywords.
 
 The images are drawn by the film project itself (film/src/films/brand/Brand.tsx: Avatar, Banner), so
 they match the videos: near-black, grey clay figure, one red hand-drawn marker circle.
@@ -17,16 +17,18 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "assets/branding"
 FILM = ROOT / "film"
 
-NAME = "Hidden Flaw"
+NAME = "Errata"
+HANDLE = "ErrataStories"
 DESCRIPTION = (
     "True tech stories, explained in minutes.\n\n"
-    "Hidden Flaw tells the real stories behind famous machines, bugs, hacks and engineering disasters, "
-    "and the one flaw that changed everything. How Enigma was broken. How a single worm took down the "
-    "early internet. Why a machine built to heal ended up hurting people.\n\n"
+    "Errata: a list of mistakes, found after the fact. These are the real stories behind "
+    "famous machines, bugs, hacks and engineering disasters, and the one flaw that changed everything. "
+    "How Enigma was broken. How a single worm took down the early internet. Why a machine built to heal "
+    "ended up hurting people.\n\n"
     "Short animated documentaries, about 2 to 3 minutes each, with sources in every description.\n\n"
     "Every system has a flaw. Go looking for it."
 )
-KEYWORDS = ('"Hidden Flaw" "tech history" "tech documentary" "true tech stories" "computer history" '
+KEYWORDS = ('"Errata" "tech history" "tech documentary" "true tech stories" "computer history" '
             '"engineering disasters" cybersecurity hacking "famous bugs" cryptography "explained in minutes"')
 
 
@@ -53,7 +55,7 @@ def apply():
     bs.setdefault("image", {})["bannerExternalUrl"] = banner_url
     yt.channels().update(part="brandingSettings", body={"id": ch["id"], "brandingSettings": bs}).execute()
     print(f"channel {ch['id']}: banner, description and keywords set. Now in YouTube Studio: rename the "
-          f"channel to {NAME!r}, pick a handle, and upload assets/branding/avatar.png as the picture.")
+          f"channel to {NAME!r}, set the handle @{HANDLE}, and upload assets/branding/avatar.png as the picture.")
 
 
 if __name__ == "__main__":

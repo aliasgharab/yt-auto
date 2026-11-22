@@ -1,6 +1,6 @@
-# Hidden Flaw Uploader
+# Errata Uploader
 
-Hidden Flaw makes short animated documentaries about true tech stories. This tool uploads and schedules
+Errata makes short animated documentaries about true tech stories. This tool uploads and schedules
 the channel's own videos and reads the channel's own analytics. Only the channel owner uses it.
 
 - [Privacy policy](privacy.html)

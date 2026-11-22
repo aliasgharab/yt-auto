@@ -1,6 +1,6 @@
 # yt-auto Architecture (format-agnostic)
 
-Saved 2026-11-22. This is the pipeline behind the **Hidden Flaw** channel (formerly Kernel Kids Shorts)
+Saved 2026-11-22. This is the pipeline behind the **Errata** channel (formerly Kernel Kids Shorts; handle @ErrataStories)
 (`~/projects/yt-auto`, github.com/aliasgharab/yt-auto). It is **paused**. Use this doc to
 restart it with a different video style (this Remotion film style, long-form, or a new Shorts style).
 

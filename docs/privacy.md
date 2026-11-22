@@ -1,6 +1,6 @@
-# Privacy policy: Hidden Flaw Uploader
+# Privacy policy: Errata Uploader
 
-Hidden Flaw Uploader is a private tool that the owner of the Hidden Flaw YouTube channel uses to upload
+Errata Uploader is a private tool that the owner of the Errata YouTube channel uses to upload
 and schedule that channel's own videos and to read the channel's own analytics.
 
 - It is used only by the channel owner, with the owner's own Google account. It has no other users.

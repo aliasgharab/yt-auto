@@ -1,6 +1,6 @@
 # yt-auto channel config
 channel:
-  name: Hidden Flaw          # branding: tools/branding.py (avatar, banner, description, keywords)
+  name: Errata               # handle @ErrataStories; branding: tools/branding.py (avatar, banner, description, keywords)
   niche: >
     True tech stories told as 2-3 minute animated dark documentaries: famous machines, bugs, hacks,
     outages, engineering disasters and the people behind them, each built around the flaw, trick or

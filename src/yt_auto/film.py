@@ -30,7 +30,7 @@ VOICE_AT = 20                # narration starts at this frame in every film (see
 TARGET_LUFS = -14.2          # YouTube plays at -14; stay a hair under
 PEAK_LIMIT = 0.84            # alimiter linear limit (~ -1.5 dBFS) so AAC overshoot stays under -1 dB
 MIN_SPEECH = 0.90            # share of script words Whisper must hear in the final mix (rule says 95%)
-CHANNEL = "Hidden Flaw"
+CHANNEL = "Errata"
 DISCLOSURE = "Animation, music and sound effects are made in code. The narration is a synthetic voice."
 
 DEFAULTS = {"dir": "film", "voice_python": "film/tools/voice/.venv/bin/python",

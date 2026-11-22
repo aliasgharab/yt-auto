@@ -6,9 +6,9 @@ import {LookFx} from '../../components/LookFx';
 import {Hero} from '../../components/Hero';
 import {Glow, Marker} from '../../components/Primitives';
 
-// Channel branding for "Hidden Flaw" plus the per-video thumbnail, all in the documentary look.
+// Channel branding for "Errata" plus the per-video thumbnail, all in the documentary look.
 // Render stills at frame 30 (markers are fully drawn by then).
-export const CHANNEL = {name: 'HIDDEN FLAW', tagline: 'True tech stories, explained in minutes.'};
+export const CHANNEL = {name: 'ERRATA', tagline: 'True tech stories, explained in minutes.'};
 
 // Each exported component calls applyLook() first: children (and their LOOK fonts) are created
 // by the caller before Frame itself renders.
@@ -71,14 +71,11 @@ export const Banner: React.FC = () => {
       <Glow x={760} y={420} r={900} color={C.lamp} opacity={0.35} />
       <line x1={0} x2={2560} y1={930} y2={930} stroke="#2C2C30" strokeWidth={3} />
       <Hero x={700} y={930} scale={0.95} pose="stand" brow={0.4} mouth={-0.1} />
-      <text x={1530} y={760} textAnchor="end" fontFamily={LOOK.display} fontSize={210} fill={C.white} letterSpacing={6}>
-        HIDDEN
+      <text x={1480} y={760} textAnchor="middle" fontFamily={LOOK.display} fontSize={240} fill={C.white} letterSpacing={10}>
+        {CHANNEL.name}
       </text>
-      <text x={1830} y={760} textAnchor="middle" fontFamily={LOOK.display} fontSize={210} fill={C.white} letterSpacing={6}>
-        FLAW
-      </text>
-      <Marker x={1830} y={672} rx={250} ry={132} from={0} seed={2} />
-      <text x={1480} y={895} textAnchor="middle" fontFamily={LOOK.font} fontWeight={700} fontSize={54} fill="#B8B8BE" letterSpacing={3}>
+      <Marker x={1480} y={668} rx={490} ry={165} from={0} seed={2} />
+      <text x={1480} y={915} textAnchor="middle" fontFamily={LOOK.font} fontWeight={700} fontSize={54} fill="#B8B8BE" letterSpacing={3}>
         {CHANNEL.tagline.toUpperCase()}
       </text>
     </Frame>

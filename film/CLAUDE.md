@@ -145,7 +145,7 @@ Extract a frame every 2 s into contact sheets plus full-res close-ups of every r
 5. Fade to black.
 
 ## Working conventions
-- **Channel: Hidden Flaw** ("True tech stories, explained in minutes."). This folder is `film/` inside the yt-auto repo (`~/my-film` links here). yt-auto's film builder (`src/yt_auto/film.py`) writes the script, voices it, has Claude Code direct the scenes from this file, renders, masters and uploads. Titles are always "<Subject> Explained in Under <N> Minutes"; descriptions are summary, sources, disclosure, hashtags (built in code).
+- **Channel: Errata** ("True tech stories, explained in minutes."). This folder is `film/` inside the yt-auto repo (`~/my-film` links here). yt-auto's film builder (`src/yt_auto/film.py`) writes the script, voices it, has Claude Code direct the scenes from this file, renders, masters and uploads. Titles are always "<Subject> Explained in Under <N> Minutes"; descriptions are summary, sources, disclosure, hashtags (built in code).
 - Branding and thumbnails: `src/films/brand/Brand.tsx` (Avatar, Banner, Thumbnail compositions).
 - Each film is its own Composition registered in `src/Root.tsx`, with its own folder in `src/films/<film-name>/`.
 - Shared pieces (Hero, Shadow, Letterbox, DayCounter, NarratorText, Glow, WobblyShape, TitleCard, CityScroll) live in `src/components/` and are reused across films.
