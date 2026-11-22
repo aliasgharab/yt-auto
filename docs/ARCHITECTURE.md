@@ -1,7 +1,7 @@
 # yt-auto Architecture (format-agnostic)
 
 Saved 2026-11-22. This is the pipeline behind the **Errata** channel (formerly Kernel Kids Shorts; handle @ErrataStories)
-(`~/projects/yt-auto`, github.com/aliasgharab/yt-auto). It is **paused**. Use this doc to
+(`~/projects/yt-auto`, github.com/aliasgharab/yt-auto). Use this doc to
 restart it with a different video style (this Remotion film style, long-form, or a new Shorts style).
 
 **Main point:** only the *build* step (script → finished `video.mp4`) depends on the video style.
@@ -10,14 +10,14 @@ all work for any format. To change style, write a new **format builder** and reg
 
 ---
 
-## 1. Current state (paused)
+## 1. Current state (running as Errata since 2026-11-22)
 
 | Item | State |
 |---|---|
-| GitHub workflows `yt-auto`, `heartbeat`, `doctor` | **Disabled** 2026-11-22 (`gh workflow disable`); running heartbeat cancelled |
+| GitHub workflows `yt-auto`, `heartbeat`, `doctor` | Disabled 2026-11-22 for the rebuild, **re-enabled 2026-11-22** with `default_format: film` (1 film a night) |
 | `pages-build-deployment` (privacy/terms site) | Still on. Keep it: the OAuth consent screen needs it |
 | Notion "Content Pipeline" | Nothing pending. The 4 private Needs Approval videos were deleted from YouTube on 2026-11-22 and their rows set to Rejected |
-| Secrets / tokens | Unchanged: GitHub Actions secrets plus `~/.config/yt-auto/` |
+| Secrets / tokens | `YOUTUBE_TOKEN` renewed 2026-11-22 with `youtube.force-ssl` (caption upload); rest unchanged |
 
 **Restart:**
 ```bash
