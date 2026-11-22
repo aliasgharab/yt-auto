@@ -1,0 +1,14 @@
+node_modules
+dist
+.DS_Store
+.env
+
+# renders and generated audio (re-made by scripts/make_voice.py and scripts/make_sounds.py)
+out
+public/voice/*.wav
+public/sfx/*.wav
+tools/voice/.venv
+tools/voice/audition
+
+# the channel narrator reference (synthetic, Kokoro bm_lewis) is needed to build films
+!tools/voice/refs/narrator.wav

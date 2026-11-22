@@ -1,0 +1,299 @@
+{
+ "duration": 149.389,
+ "lines": [
+  {
+   "text": "In 1939, Germany had a machine that could hide anything.",
+   "start": 0.0,
+   "end": 3.525,
+   "startFrame": 0,
+   "endFrame": 106
+  },
+  {
+   "text": "Orders. Ship positions. Attack plans.",
+   "start": 4.025,
+   "end": 6.603,
+   "startFrame": 121,
+   "endFrame": 198
+  },
+  {
+   "text": "You pressed a key, and a different letter lit up.",
+   "start": 7.203,
+   "end": 10.351,
+   "startFrame": 216,
+   "endFrame": 311
+  },
+  {
+   "text": "Press the same key again, and you got something else entirely.",
+   "start": 10.751,
+   "end": 14.351,
+   "startFrame": 323,
+   "endFrame": 431
+  },
+  {
+   "text": "It was called Enigma.",
+   "start": 15.051,
+   "end": 16.709,
+   "startFrame": 452,
+   "endFrame": 501
+  },
+  {
+   "text": "Every night at midnight, the settings changed.",
+   "start": 17.609,
+   "end": 20.21,
+   "startFrame": 528,
+   "endFrame": 606
+  },
+  {
+   "text": "That meant one hundred and fifty-nine quintillion possible combinations.",
+   "start": 20.61,
+   "end": 24.509,
+   "startFrame": 618,
+   "endFrame": 735
+  },
+  {
+   "text": "And whatever you'd worked out that day was now useless.",
+   "start": 25.009,
+   "end": 28.206,
+   "startFrame": 750,
+   "endFrame": 846
+  },
+  {
+   "text": "The Germans were sure it could never be broken.",
+   "start": 29.206,
+   "end": 32.061,
+   "startFrame": 876,
+   "endFrame": 962
+  },
+  {
+   "text": "They were almost right.",
+   "start": 33.161,
+   "end": 34.422,
+   "startFrame": 995,
+   "endFrame": 1033
+  },
+  {
+   "text": "By 1940, German submarines were hunting in the Atlantic.",
+   "start": 35.822,
+   "end": 39.375,
+   "startFrame": 1075,
+   "endFrame": 1181
+  },
+  {
+   "text": "They hunted in groups. Wolf packs.",
+   "start": 39.775,
+   "end": 42.141,
+   "startFrame": 1193,
+   "endFrame": 1264
+  },
+  {
+   "text": "Every week, supply ships went down by the dozen.",
+   "start": 42.741,
+   "end": 45.61,
+   "startFrame": 1282,
+   "endFrame": 1368
+  },
+  {
+   "text": "Britain was an island. Without those ships, it would starve.",
+   "start": 46.21,
+   "end": 49.518,
+   "startFrame": 1386,
+   "endFrame": 1486
+  },
+  {
+   "text": "Every order to every submarine went out by radio.",
+   "start": 50.318,
+   "end": 53.174,
+   "startFrame": 1510,
+   "endFrame": 1595
+  },
+  {
+   "text": "Britain could hear every single message.",
+   "start": 53.574,
+   "end": 55.837,
+   "startFrame": 1607,
+   "endFrame": 1675
+  },
+  {
+   "text": "It just couldn't read any of them.",
+   "start": 56.337,
+   "end": 58.509,
+   "startFrame": 1690,
+   "endFrame": 1755
+  },
+  {
+   "text": "So Britain did something strange.",
+   "start": 59.609,
+   "end": 61.276,
+   "startFrame": 1788,
+   "endFrame": 1838
+  },
+  {
+   "text": "It gathered mathematicians, chess players and puzzle fanatics at a country house called Bletchley Park.",
+   "start": 61.776,
+   "end": 67.52,
+   "startFrame": 1853,
+   "endFrame": 2026
+  },
+  {
+   "text": "One of them was a quiet twenty-seven year old named Alan Turing.",
+   "start": 68.12,
+   "end": 71.93,
+   "startFrame": 2044,
+   "endFrame": 2158
+  },
+  {
+   "text": "He chained his tea mug to a radiator, so nobody could steal it.",
+   "start": 72.43,
+   "end": 76.559,
+   "startFrame": 2173,
+   "endFrame": 2297
+  },
+  {
+   "text": "And he had an idea that nobody liked.",
+   "start": 77.359,
+   "end": 79.898,
+   "startFrame": 2321,
+   "endFrame": 2397
+  },
+  {
+   "text": "Stop trying to beat the machine by hand.",
+   "start": 80.498,
+   "end": 83.033,
+   "startFrame": 2415,
+   "endFrame": 2491
+  },
+  {
+   "text": "Build a machine to beat it.",
+   "start": 83.433,
+   "end": 85.332,
+   "startFrame": 2503,
+   "endFrame": 2560
+  },
+  {
+   "text": "But there was a problem.",
+   "start": 86.432,
+   "end": 87.637,
+   "startFrame": 2593,
+   "endFrame": 2629
+  },
+  {
+   "text": "Even a machine couldn't check every setting before midnight.",
+   "start": 88.137,
+   "end": 91.143,
+   "startFrame": 2644,
+   "endFrame": 2734
+  },
+  {
+   "text": "For months, it ran. And found nothing.",
+   "start": 91.743,
+   "end": 94.172,
+   "startFrame": 2752,
+   "endFrame": 2825
+  },
+  {
+   "text": "Ships were still sinking. People wanted results.",
+   "start": 94.872,
+   "end": 97.834,
+   "startFrame": 2846,
+   "endFrame": 2935
+  },
+  {
+   "text": "Then Turing found a tiny flaw inside Enigma itself.",
+   "start": 98.834,
+   "end": 101.914,
+   "startFrame": 2965,
+   "endFrame": 3057
+  },
+  {
+   "text": "A letter could never turn into itself.",
+   "start": 102.514,
+   "end": 104.884,
+   "startFrame": 3075,
+   "endFrame": 3147
+  },
+  {
+   "text": "An A was never an A. An E was never an E.",
+   "start": 105.384,
+   "end": 109.203,
+   "startFrame": 3162,
+   "endFrame": 3276
+  },
+  {
+   "text": "And the German operators were predictable.",
+   "start": 109.903,
+   "end": 111.857,
+   "startFrame": 3297,
+   "endFrame": 3356
+  },
+  {
+   "text": "Every morning, the same weather report. The same words.",
+   "start": 112.257,
+   "end": 115.309,
+   "startFrame": 3368,
+   "endFrame": 3459
+  },
+  {
+   "text": "Guess one word, and almost every setting became impossible.",
+   "start": 115.909,
+   "end": 119.317,
+   "startFrame": 3477,
+   "endFrame": 3580
+  },
+  {
+   "text": "Quintillions of options shrank to a few thousand.",
+   "start": 119.817,
+   "end": 122.612,
+   "startFrame": 3595,
+   "endFrame": 3678
+  },
+  {
+   "text": "In the summer of 1940, the machine they called the Bomb stopped.",
+   "start": 123.712,
+   "end": 127.772,
+   "startFrame": 3711,
+   "endFrame": 3833
+  },
+  {
+   "text": "It had found the key.",
+   "start": 128.372,
+   "end": 129.879,
+   "startFrame": 3851,
+   "endFrame": 3896
+  },
+  {
+   "text": "From then on, Britain often read the orders before the submarines did.",
+   "start": 130.879,
+   "end": 134.723,
+   "startFrame": 3926,
+   "endFrame": 4042
+  },
+  {
+   "text": "Some say it shortened the war by two years.",
+   "start": 135.323,
+   "end": 138.174,
+   "startFrame": 4060,
+   "endFrame": 4145
+  },
+  {
+   "text": "The Germans never found out.",
+   "start": 139.174,
+   "end": 140.85,
+   "startFrame": 4175,
+   "endFrame": 4226
+  },
+  {
+   "text": "Their perfect machine had one tiny flaw.",
+   "start": 142.05,
+   "end": 144.654,
+   "startFrame": 4262,
+   "endFrame": 4340
+  },
+  {
+   "text": "And one stubborn man went looking for it.",
+   "start": 145.354,
+   "end": 147.889,
+   "startFrame": 4361,
+   "endFrame": 4437
+  }
+ ]
+}

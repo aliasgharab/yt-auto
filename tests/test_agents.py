@@ -89,7 +89,7 @@ def test_gather_signals_tolerates_failures(monkeypatch):
 
 
 def test_research_ideas_end_to_end_mocked(cfg, monkeypatch):
-    monkeypatch.setattr(agents, "gather_signals", lambda: ([], ["all down"]))
+    monkeypatch.setattr(agents, "gather_signals", lambda **kw: ([], ["all down"]))
     ideas = [{"title": t, "topic": "x", "notes": "y"} for t in
              ["Baymax, why does my phone get hot?", "Baymax, what is a deadlock?", "Baymax, how do interrupts work?",
               "Baymax, why do games lag?", "Baymax, what is DMA?"]]

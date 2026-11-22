@@ -1,0 +1,75 @@
+{
+ "duration": 34.842,
+ "lines": [
+  {
+   "text": "In 1939, Germany had a machine that could hide anything.",
+   "start": 0.0,
+   "end": 3.525,
+   "startFrame": 0,
+   "endFrame": 106
+  },
+  {
+   "text": "Orders. Ship positions. Attack plans.",
+   "start": 4.025,
+   "end": 6.603,
+   "startFrame": 121,
+   "endFrame": 198
+  },
+  {
+   "text": "You pressed a key, and a different letter lit up.",
+   "start": 7.203,
+   "end": 10.372,
+   "startFrame": 216,
+   "endFrame": 311
+  },
+  {
+   "text": "Press the same key again, and you got something else entirely.",
+   "start": 10.772,
+   "end": 14.372,
+   "startFrame": 323,
+   "endFrame": 431
+  },
+  {
+   "text": "It was called Enigma.",
+   "start": 15.072,
+   "end": 16.729,
+   "startFrame": 452,
+   "endFrame": 502
+  },
+  {
+   "text": "Every night at midnight, the settings changed.",
+   "start": 17.629,
+   "end": 20.231,
+   "startFrame": 529,
+   "endFrame": 607
+  },
+  {
+   "text": "That meant one hundred and fifty-nine quintillion possible combinations.",
+   "start": 20.631,
+   "end": 24.529,
+   "startFrame": 619,
+   "endFrame": 736
+  },
+  {
+   "text": "And whatever you'd worked out that day was now useless.",
+   "start": 25.029,
+   "end": 28.227,
+   "startFrame": 751,
+   "endFrame": 847
+  },
+  {
+   "text": "The Germans were sure it could never be broken.",
+   "start": 29.227,
+   "end": 32.082,
+   "startFrame": 877,
+   "endFrame": 962
+  },
+  {
+   "text": "They were almost right.",
+   "start": 33.182,
+   "end": 34.442,
+   "startFrame": 995,
+   "endFrame": 1033
+  }
+ ]
+}

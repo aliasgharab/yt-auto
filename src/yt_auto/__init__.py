@@ -1,5 +1,6 @@
 """yt-auto: automated faceless tech-explainer pipeline.
 
+  yt-auto make --format film [--topic "..."]    # 2-3 min documentary film (Remotion, film/) -> out/<date>-<slug>-film/
   yt-auto make --format short [--topic "..."]   # full local build -> out/<slug>-<format>/
   yt-auto make --from out/<dir>                  # rebuild an existing job, reusing its script
   yt-auto youtube-auth / youtube-check            # one-time YouTube login / verify (docs/youtube-setup.md)
@@ -176,7 +177,8 @@ def main():
     ap = argparse.ArgumentParser(prog="yt-auto")
     sub = ap.add_subparsers(dest="cmd", required=True)
     mk = sub.add_parser("make", help="build one video locally")
-    mk.add_argument("--format", choices=["short", "long"], default="short")
+    mk.add_argument("--format", choices=["short", "long", "film"], default=None,
+                    help="default: config default_format")
     mk.add_argument("--topic")
     mk.add_argument("--from", dest="job", type=Path, help="existing job dir to rebuild")
     from . import agents, heal, pipeline, youtube
@@ -192,8 +194,13 @@ def main():
         raise SystemExit(a.func(a, cfg))
     if a.cmd == "make":
         job = a.job.resolve() if a.job else None
-        style = json.loads((job / "job.json").read_text()).get("style") if job else None
-        if (a.format == "short" and not job) or style == "duo":
+        jj = json.loads((job / "job.json").read_text()) if job else {}
+        style = jj.get("style")
+        fmt = jj.get("format") or a.format or cfg.get("default_format") or "short"
+        if fmt == "film":
+            from .film import build_film
+            build_film(cfg, a.topic, job)
+        elif (fmt == "short" and not job) or style == "duo":
             build_short(cfg, a.topic, job)
         else:
-            build(cfg, a.format, a.topic, job)
+            build(cfg, fmt, a.topic, job)

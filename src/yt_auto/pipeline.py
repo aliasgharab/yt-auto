@@ -1,6 +1,6 @@
 """Runtime orchestration around the Notion "Content Pipeline" board.
 
-  yt-auto nightly [--count N]   build Shorts from Idea rows -> QA -> private YouTube upload (preview) ->
+  yt-auto nightly [--count N]   build videos (default_format: film or short) from Idea rows -> QA -> private YouTube upload (preview) ->
                                 Needs Approval (+ phone push with the YouTube Studio link), then publish
   yt-auto publish               approved rows -> schedule the private upload for the next free peak slot
                                 (videos.update, no re-upload); rejected -> stays private, row Rejected;
@@ -145,7 +145,28 @@ def job_path(cfg: dict, ref: str) -> Path:
 
 
 def youtube_url(video_id: str, fmt: str | None) -> str:
-    return f"https://youtube.com/shorts/{video_id}" if fmt != "long" else f"https://youtu.be/{video_id}"
+    return f"https://youtube.com/shorts/{video_id}" if fmt in (None, "short") else f"https://youtu.be/{video_id}"
+
+
+LABELS = {"short": "Short", "film": "Film", "long": "Video"}
+
+
+def default_format(cfg: dict) -> str:
+    return cfg.get("default_format") or "short"
+
+
+def builder_for(fmt: str):
+    """Format -> build function (the format contract in YT-AUTO-ARCHITECTURE.md section 4)."""
+    if fmt == "film":
+        from .film import build_film
+        return build_film
+    from . import build_short
+    return build_short
+
+
+def per_night(cfg: dict) -> int:
+    p = cfg.get("publish") or {}
+    return int(p.get("videos_per_night") or p.get("shorts_per_night") or pcfg(cfg)["shorts_per_night"])
 
 
 def studio_url(video_id: str) -> str:
@@ -362,8 +383,10 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
 
     from . import heal
     from .analytics import hook_pattern, script_text
+    fmt = (row.get("Format") or default_format(cfg)).strip().lower()
+    label = LABELS.get(fmt, "Video")
     if build is None:
-        from . import build_short as build
+        build = builder_for(fmt)
     topic = (row.get("Topic") or "").strip() or None
     if not topic and row.get("Source") != "auto":   # auto rows: let the script writer pick the topic
         topic = (row.get("Title") or "").strip() or None
@@ -375,8 +398,10 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
 
     def on_script(sc, job):
         made["job"] = job
-        vals = {"Status": "Scripted", "Title": sc["title"], "Job": job_ref(cfg, job), "Format": "short"}
-        if sc.get("lines"):
+        vals = {"Status": "Scripted", "Title": sc["title"], "Job": job_ref(cfg, job), "Format": fmt}
+        if sc.get("lines") and fmt == "film":
+            vals.update({"Hook": sc["lines"][0].get("text", ""), "Script": script_text(sc)[:1900]})
+        elif sc.get("lines"):
             duo = cfg.get("duo") or {}
             hook = sc["lines"][0].get("text", "")
             vals.update({"Hook": hook, "Script": script_text(sc)[:1900],
@@ -400,7 +425,7 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
             vals["QA Notes"] = f"{qa['notes']}\n\n{pv['note']}".strip()
             if pv.get("video_id"):
                 vals["Video ID"] = pv["video_id"]
-                vals["YouTube URL"] = youtube_url(pv["video_id"], "short")
+                vals["YouTube URL"] = youtube_url(pv["video_id"], fmt)
         if ok and pcfg(cfg)["auto_approve"]:   # pass or warn; only a QA fail still blocks a video
             vals["Approve"] = True
         nc.update_row(rid, vals)
@@ -420,10 +445,10 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
             if notion:
                 msg += f"\nNotion: {notion}"
             actions = [("Notion", notion)] if notion and (pv.get("studio") or pv.get("run")) else None
-            notify.send("New Short done" + (", auto-publishing" if auto else ", approve?"), msg,
+            notify.send(f"New {label} done" + (", auto-publishing" if auto else ", approve?"), msg,
                         click=pv.get("studio") or pv.get("run") or notion, tags=["clapper"], actions=actions)
         else:
-            notify.send("Short failed QA", f"{title}: {qa['notes']}"[:400], click=row.get("_url"), tags=["x"])
+            notify.send(f"{label} failed QA", f"{title}: {qa['notes']}"[:400], click=row.get("_url"), tags=["x"])
         log.info("%s -> %s (QA %s)", title, vals["Status"], qa["verdict"])
         return {**row, **vals}
     except Exception as e:
@@ -442,7 +467,7 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
             nc.update_row(rid, vals)
         except Exception as e2:
             log.error("could not update the failed row: %s", e2)
-        notify.send("Short build hit a network hiccup, retrying tomorrow" if transient else "Short build failed",
+        notify.send(f"{label} build hit a network hiccup, retrying tomorrow" if transient else f"{label} build failed",
                     f"{topic or 'auto topic'}: {e}"[:400], click=row.get("_url"), tags=["x"])
         return {**row, **vals, "_error": "transient" if transient else "bug"}
 
@@ -505,7 +530,7 @@ def nightly_status(results: list[dict]) -> str | None:
 
 def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
     _ensure_schema(nc)
-    count = count or _cadence(cfg, nc, pcfg(cfg)["shorts_per_night"])
+    count = count or _cadence(cfg, nc, per_night(cfg))
     queue = nc.query("Idea")
     queue.sort(key=lambda r: r.get("Source") != "follow-up")   # winners' follow-ups first (stable sort)
     ideas = queue[:count]
@@ -513,7 +538,7 @@ def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
     recent = _recent_scripts(nc)
     while len(ideas) < count:
         ideas.append(nc.create_row({"Title": "(auto topic, writing script...)", "Status": "Idea",
-                                    "Source": "auto", "Format": "short"}))
+                                    "Source": "auto", "Format": default_format(cfg)}))
     try:   # titles already made: Notion is the memory on ephemeral runners (out/ starts empty there)
         past = [r["Title"] for r in nc.query(["Needs Approval", "Scheduled", "Live", "Rejected"]) if r.get("Title")]
     except Exception as e:
@@ -552,7 +577,7 @@ def research(cfg: dict, nc, n: int = 10) -> int:
             continue
         seen.add(_norm(title))
         nc.create_row({"Title": title, "Topic": idea.get("topic") or title, "Idea Notes": idea.get("notes", ""),
-                       "Status": "Idea", "Source": "researcher", "Format": "short"})
+                       "Status": "Idea", "Source": "researcher", "Format": default_format(cfg)})
         made += 1
     log.info("research: %d new idea(s)", made)
     return made
@@ -634,8 +659,8 @@ def _run(name: str, fn, locked: bool):
 
 
 def register(sub) -> None:
-    p = sub.add_parser("nightly", help="build Shorts from Notion ideas -> QA -> Needs Approval, then publish")
-    p.add_argument("--count", type=int, default=None, help="Shorts to build (default publish.shorts_per_night)")
+    p = sub.add_parser("nightly", help="build videos from Notion ideas -> QA -> Needs Approval, then publish")
+    p.add_argument("--count", type=int, default=None, help="videos to build (default publish.videos_per_night)")
     p.set_defaults(func=_run("nightly", lambda a, c, nc: _nightly_cli(c, nc, a.count), locked=True))
 
     p = sub.add_parser("publish", help="upload approved rows, mark rejected, flip Scheduled -> Live")

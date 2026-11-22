@@ -66,6 +66,12 @@ ELI5_QUERY = "computer OR memory OR processor OR phone OR chip OR operating syst
 YT_QUERIES = ["computer explained shorts", "how does a cpu work shorts", "operating system explained shorts",
               "embedded systems explained shorts", "microcontroller explained shorts"]
 NET_BUDGET_S = 45
+# films (true tech stories): where people talk about computing history, famous bugs, hacks and disasters
+FILM_HN_KEYWORDS = ["computer history", "postmortem", "famous bug", "Y2K", "worm", "hack", "outage", "cryptography",
+                    "Apollo guidance computer", "Therac-25", "Unix history", "early internet", "reverse engineering"]
+FILM_SUBREDDITS = ["computerscience", "history", "cybersecurity", "programming", "retrocomputing"]
+FILM_YT_QUERIES = ["tech history documentary", "how a hacker", "the bug that", "computer history explained",
+                   "true story engineering disaster"]
 
 
 def _get_json(url: str, timeout: float = 8) -> dict:
@@ -127,10 +133,11 @@ def _youtube(query: str) -> list[dict]:
     return out
 
 
-def gather_signals(budget_s: float = NET_BUDGET_S) -> tuple[list[dict], list[str]]:
+def gather_signals(budget_s: float = NET_BUDGET_S, film: bool = False) -> tuple[list[dict], list[str]]:
     """Runs every source in parallel under one wall-clock budget. Returns (signals, errors)."""
-    jobs = ([(f"hn:{k}", _hn, k) for k in HN_KEYWORDS] + [(f"reddit:{s}", _reddit, s) for s in SUBREDDITS]
-            + [(f"yt:{q}", _youtube, q) for q in YT_QUERIES])
+    hn, subs, yq = (FILM_HN_KEYWORDS, FILM_SUBREDDITS, FILM_YT_QUERIES) if film else (HN_KEYWORDS, SUBREDDITS, YT_QUERIES)
+    jobs = ([(f"hn:{k}", _hn, k) for k in hn] + [(f"reddit:{s}", _reddit, s) for s in subs]
+            + [(f"yt:{q}", _youtube, q) for q in yq])
     signals, errors = [], []
     ex = cf.ThreadPoolExecutor(max_workers=12)
     futs = {ex.submit(fn, arg): name for name, fn, arg in jobs}
@@ -207,12 +214,13 @@ IDEAS_SCHEMA = {
 
 def research_ideas(cfg: dict, existing_titles: list[str], n: int) -> list[dict]:
     """Free public signals (HN, Reddit, YouTube search) -> one claude call -> n question-style ideas."""
-    signals, errors = gather_signals()
+    film = cfg.get("default_format") == "film"
+    signals, errors = gather_signals(film=True) if film else gather_signals()
     for e in errors:
         print(f"  [research] source failed: {e}", file=sys.stderr)
     duo = cfg["duo"]
     prompt = load_prompt(
-        "research", A=duo["asker"], B=duo["explainer"], niche=" ".join(cfg["channel"]["niche"].split()),
+        "research_film" if film else "research", A=duo["asker"], B=duo["explainer"], niche=" ".join(cfg["channel"]["niche"].split()),
         signals=format_signals(signals) if signals else "(all sources failed today: rely on the niche)",
         existing="\n".join(f"- {t}" for t in existing_titles[-150:]) or "(none yet)", n=n + 2)
     res = helper.call_json(prompt, IDEAS_SCHEMA, cfg, "research")
@@ -316,6 +324,13 @@ def _popup_refs(job: Path, sc: dict) -> tuple[list[Path], list[str]]:
     return refs, sorted(set(missing))
 
 
+def _job_format(job: Path) -> str:
+    try:
+        return json.loads((Path(job) / "job.json").read_text()).get("format") or "short"
+    except (OSError, ValueError):
+        return "short"
+
+
 def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
     """Returns ([(severity, message)], facts). severity in ok|warn|fail."""
     res, facts = [], {}
@@ -323,6 +338,8 @@ def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
     video = job / "video.mp4"
     sc = json.loads((job / "script.json").read_text()) if (job / "script.json").exists() else {}
     timing = json.loads((job / "timing.json").read_text()) if (job / "timing.json").exists() else []
+    fmt = _job_format(job)
+    film = fmt == "film"
     if not sc:
         add("fail", "script.json missing")
     if not video.exists() or video.stat().st_size < 10_000:
@@ -338,12 +355,13 @@ def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
     facts["duration_s"] = round(dur, 2)
     vs = [s for s in info.get("streams", []) if s.get("codec_type") == "video"]
     aus = [s for s in info.get("streams", []) if s.get("codec_type") == "audio"]
-    if not 15 <= dur <= 60:
-        add("fail", f"duration {dur:.1f}s outside 15-60s")
+    lo, hi = (100, 240) if film else (15, 60)
+    if not lo <= dur <= hi:
+        add("fail", f"duration {dur:.1f}s outside {lo}-{hi}s")
     else:
         add("ok", f"duration {dur:.1f}s")
     if timing:
-        expect = timing[-1]["end"] + 0.5
+        expect = timing[-1]["end"] + (13.0 if film else 0.5)   # films end on a 12 s title card
         facts["expected_duration_s"] = round(expect, 2)
         if abs(dur - expect) > 1.5:
             add("warn", f"duration {dur:.1f}s differs from timing.json ({expect:.1f}s) by {abs(dur - expect):.1f}s")
@@ -356,7 +374,7 @@ def deterministic_checks(job: Path) -> tuple[list[tuple[str, str]], dict]:
     else:
         w, h = vs[0].get("width"), vs[0].get("height")
         facts["size"] = f"{w}x{h}"
-        add("ok" if (w, h) == (1080, 1920) else "fail", f"resolution {w}x{h}")
+        add("ok" if (w, h) == ((1920, 1080) if film else (1080, 1920)) else "fail", f"resolution {w}x{h}")
     if not aus:
         add("fail", "no audio stream")
     else:
@@ -422,7 +440,21 @@ def _frame_context(frames, sc, timing) -> str:
     return "\n".join(rows)
 
 
+def _film_frame_context(frames, timing) -> str:
+    rows = []
+    for p, t in frames:
+        cur = next((tm for tm in reversed(timing) if tm["start"] <= t), None)
+        rows.append(f"- {p.name} @ {t:.1f}s: " + (f"narrator: \"{cur['text']}\"" if cur and t <= cur["end"] + 3
+                                                    else "(no line: pause, shot hold or title card)"))
+    return "\n".join(rows)
+
+
 def vision_check(cfg: dict, job: Path, frames, sc: dict, timing: list) -> dict:
+    if _job_format(job) == "film":
+        prompt = load_prompt("qa_film_vision", frames="\n".join(f"- {p.name}" for p, _ in frames),
+                             frame_context=_film_frame_context(frames, timing))
+        fdir = frames[0][0].parent
+        return _claude(prompt, cfg, SCHEMA_QA, tools="Read", add_dirs=[fdir], cwd=fdir, timeout=900)
     duo = cfg["duo"]
     prompt = load_prompt(
         "qa_vision", A=duo["asker"], B=duo["explainer"],
@@ -463,7 +495,8 @@ def qa_review(cfg: dict, job: Path) -> dict:
         try:
             sc = json.loads((job / "script.json").read_text())
             timing = json.loads((job / "timing.json").read_text()) if (job / "timing.json").exists() else []
-            frames = extract_frames(job, facts.get("duration_s", 20))
+            dur = facts.get("duration_s", 20)
+            frames = extract_frames(job, dur, n=16) if _job_format(job) == "film" else extract_frames(job, dur)
             vision = vision_check(cfg, job, frames, sc, timing)
         except Exception as e:
             verr = f"{type(e).__name__}: {str(e)[:300]}"

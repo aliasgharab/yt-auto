@@ -30,6 +30,7 @@ CLIENT_SECRET = CONFIG_DIR / "client_secret.json"
 TOKEN = CONFIG_DIR / "youtube_token.json"
 SCOPES = [
     "https://www.googleapis.com/auth/youtube",              # videos.update (schedule / keep private)
+    "https://www.googleapis.com/auth/youtube.force-ssl",    # captions.insert (films upload their own SRT)
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
@@ -250,6 +251,15 @@ def upload(job: Path, publish_at: datetime | None = None) -> str:
                 videoId=video_id, media_body=MediaFileUpload(str(thumb), mimetype="image/jpeg")).execute())
         except Exception as e:  # noqa: BLE001 - custom thumbnails need a verified (phone) channel
             print(f"  thumbnail not set: {e}", flush=True)
+    srt = job / "captions.srt"
+    if srt.is_file() and meta.get("format") == "film":   # exact captions from the script (~400 quota units)
+        try:
+            _with_retry(lambda: yt.captions().insert(
+                part="snippet", body={"snippet": {"videoId": video_id, "language": "en", "name": "English",
+                                                  "isDraft": False}},
+                media_body=MediaFileUpload(str(srt), mimetype="application/octet-stream")).execute())
+        except Exception as e:  # noqa: BLE001 - needs the youtube.force-ssl scope; YouTube auto-captions otherwise
+            print(f"  captions not uploaded: {e}", flush=True)
     return video_id
 
 

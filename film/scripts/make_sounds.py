@@ -1,0 +1,430 @@
+"""Generates every sound for the films in code: no stock audio.
+
+Run from the my-film folder:  python3 scripts/make_sounds.py
+Writes public/sfx/*.wav (sound effects) and public/sfx/boot_score.wav (music for BOOT.).
+"""
+import os
+import wave
+
+import numpy as np
+
+SR = 44100
+OUT = os.path.join(os.path.dirname(__file__), '..', 'public', 'sfx')
+os.makedirs(OUT, exist_ok=True)
+rng = np.random.default_rng(7)
+
+
+def save(name, x, peak=0.9):
+    x = np.asarray(x, dtype=np.float64)
+    m = np.max(np.abs(x)) or 1.0
+    x = x / m * peak
+    data = (np.clip(x, -1, 1) * 32767).astype('<i2')
+    with wave.open(os.path.join(OUT, name), 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes(data.tobytes())
+    print('wrote', name, f'{len(x) / SR:.2f}s')
+
+
+def secs(d):
+    return np.arange(int(d * SR)) / SR
+
+
+def smooth(x, k):
+    k = max(1, int(k))
+    return np.convolve(x, np.ones(k) / k, mode='same')
+
+
+def highpass(x, k):
+    return x - smooth(x, k)
+
+
+def fft_convolve(a, b):
+    n = len(a) + len(b) - 1
+    size = 1 << (n - 1).bit_length()
+    return np.fft.irfft(np.fft.rfft(a, size) * np.fft.rfft(b, size), size)[:n]
+
+
+def reverb(x, length=2.2, decay=0.55, mix=0.25):
+    t = secs(length)
+    ir = rng.standard_normal(len(t)) * np.exp(-t / decay)
+    ir = smooth(ir, 6)
+    ir /= np.sqrt(np.sum(ir ** 2))
+    wet = fft_convolve(x, ir)[: len(x)]
+    return x * (1 - mix) + wet * mix
+
+
+def add(buf, sig, t0, vol=1.0):
+    i = int(t0 * SR)
+    if i >= len(buf):
+        return
+    j = min(len(buf), i + len(sig))
+    buf[i:j] += sig[: j - i] * vol
+
+
+def fades(n, a, r):
+    e = np.ones(n)
+    na, nr = int(a * SR), int(r * SR)
+    if na > 0:
+        e[:na] = 0.5 - 0.5 * np.cos(np.linspace(0, np.pi, min(na, n)))[: min(na, n)]
+    if nr > 0 and nr < n:
+        e[-nr:] *= 0.5 + 0.5 * np.cos(np.linspace(0, np.pi, nr))
+    return e
+
+
+# ---------------- instruments ----------------
+
+def pad(freqs, dur, attack=2.0, release=2.0, bright=0.3):
+    t = secs(dur)
+    s = np.zeros_like(t)
+    for f in freqs:
+        for d in (-0.0025, 0.0025):
+            ph = rng.uniform(0, 6.28)
+            vib = 0.6 * np.sin(2 * np.pi * 0.17 * t + ph)
+            s += np.sin(2 * np.pi * f * (1 + d) * t + vib + ph)
+            s += bright * 0.5 * np.sin(2 * np.pi * 2 * f * (1 + d) * t + ph)
+            s += bright * 0.25 * np.sin(2 * np.pi * 3 * f * (1 + d) * t + ph)
+    s *= 1 + 0.12 * np.sin(2 * np.pi * 0.11 * t)
+    return s / (len(freqs) * 2) * fades(len(t), attack, release)
+
+
+def pluck(f, dur=1.4):
+    t = secs(dur)
+    s = sum(np.sin(2 * np.pi * f * n * t) * np.exp(-t * (2.5 + n * 1.8)) / n ** 1.3 for n in range(1, 7))
+    return s * fades(len(t), 0.003, 0.05)
+
+
+def bell(f, dur=2.5):
+    t = secs(dur)
+    parts = [(1, 1, 1.2), (2.76, 0.5, 2.5), (5.4, 0.25, 4), (8.93, 0.12, 6)]
+    s = sum(a * np.sin(2 * np.pi * f * p * t) * np.exp(-t * d) for p, a, d in parts)
+    return s * fades(len(t), 0.002, 0.1)
+
+
+def kick(dur=0.45, f0=110, f1=42, tau=0.16):
+    t = secs(dur)
+    f = f1 + (f0 - f1) * np.exp(-t / 0.04)
+    return np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / tau)
+
+
+def hat(dur=0.08, tau=0.025):
+    t = secs(dur)
+    return highpass(rng.standard_normal(len(t)), 3) * np.exp(-t / tau)
+
+
+def bass(f, dur):
+    t = secs(dur)
+    s = sum(np.sin(2 * np.pi * f * n * t) * np.exp(-t * n * 2.2) / n for n in range(1, 6))
+    return s * fades(len(t), 0.005, 0.05) * np.exp(-t * 1.5)
+
+
+def riser(dur, f0=180, f1=900):
+    t = secs(dur)
+    u = t / dur
+    f = f0 * (f1 / f0) ** u
+    tone = np.sin(2 * np.pi * np.cumsum(f) / SR)
+    noise = highpass(rng.standard_normal(len(t)), 4) * (u ** 2)
+    return (tone * 0.5 + noise * 0.4) * (u ** 1.6)
+
+
+# ---------------- music for BOOT. ----------------
+A1, D2, E2, F2, G2 = 55.0, 73.42, 82.41, 87.31, 98.0
+A2, B2, C3, Cs3, D3, E3, F3, Fs3, G3, Gs3 = 110.0, 123.47, 130.81, 138.59, 146.83, 164.81, 174.61, 185.0, 196.0, 207.65
+A3, C4, Cs4, D4, E4 = 220.0, 261.63, 277.18, 293.66, 329.63
+A4, Bb4, C5, Cs5, E5, A5 = 440.0, 466.16, 523.25, 554.37, 659.25, 880.0
+
+TOTAL = 3960 / 30
+score = np.zeros(int((TOTAL + 1) * SR))
+F = lambda frame: frame / 30.0  # noqa: E731
+BEAT = 0.5  # 120 bpm: one beat = 15 frames, montage cuts land every 2 beats
+
+# 1. Intro: soft hopeful A minor, cut dead at the triple fault
+add(score, pad([A2, E3, C4], F(310), attack=3, release=0.06), 0, 0.5)
+for i, n in enumerate([E4, C4, A3, C4]):
+    add(score, pluck(n, 2.0), 1.5 + i * 2.0, 0.18)
+
+# 2. Shadow appears: low drone + dissonant shimmer
+add(score, pad([A1, D2], 7.8, attack=2.5, release=1.2, bright=0.5), F(350), 0.75)
+add(score, pad([A4, Bb4], 6.0, attack=3, release=1.5, bright=0), F(400), 0.12)
+
+# 3. Glasses: gentle hope with bells
+add(score, pad([A2, E3, C4, E4], 5.6, attack=1.5, release=1.5), F(565), 0.38)
+for i, n in enumerate([E5, C5, A4]):
+    add(score, bell(n), F(590) + i * 1.4, 0.16)
+
+# 4. Montage + grind: driving pulse, Am F C G
+prog = [(A2, [A2, E3, C4]), (F2 * 2, [F3, A3, C4]), (C3, [C3, G3, E4]), (G2 * 2, [G3, B2 * 2, D4])]
+
+
+def pulse_section(t0, t1, vol=1.0, hats16=False, chords=prog, lead=None):
+    beats = int((t1 - t0) / BEAT)
+    for b in range(beats):
+        t = t0 + b * BEAT
+        add(score, kick(), t, 0.55 * vol)
+        add(score, hat(), t + BEAT / 2, 0.12 * vol)
+        if hats16:
+            add(score, hat(0.05, 0.015), t + BEAT / 4, 0.07 * vol)
+            add(score, hat(0.05, 0.015), t + 3 * BEAT / 4, 0.07 * vol)
+        root, chord = chords[(b // 4) % len(chords)]
+        add(score, bass(root / 2 if root > 100 else root, BEAT / 2), t, 0.35 * vol)
+        add(score, bass(root / 2 if root > 100 else root, BEAT / 2), t + BEAT / 2, 0.25 * vol)
+        if b % 4 == 0:
+            add(score, pad(chord, BEAT * 4 + 0.3, attack=0.2, release=0.4), t, 0.3 * vol)
+        if lead is not None:
+            add(score, pluck(lead[(b * 2) % len(lead)] * 2, 0.5), t, 0.12 * vol)
+            add(score, pluck(lead[(b * 2 + 1) % len(lead)] * 2, 0.5), t + BEAT / 2, 0.1 * vol)
+
+
+pulse_section(F(720), F(1260), vol=0.85)
+pulse_section(F(1260), F(1545), vol=1.0, hats16=True, lead=[A3, C4, E4, C4])
+
+# 5. Kernel panic: silence + ringing ears
+t = secs(4)
+add(score, np.sin(2 * np.pi * 3100 * t) * np.exp(-t / 1.4) * fades(len(t), 0.01, 0.5), F(1548), 0.05)
+
+# 6. Rock bottom: low, sad
+add(score, pad([A1, E2, C3], 8.6, attack=3, release=2, bright=0.2), F(1640), 0.6)
+
+# 7. The LED: almost silent, a small hopeful motif
+for i, n in enumerate([A4, C5, E5]):
+    add(score, pluck(n, 2.2), F(1905) + i * 1.5, 0.16)
+add(score, pad([A2, E3], 6.5, attack=2, release=1.5, bright=0), F(1890), 0.18)
+
+# 8. Stand up: swell into him rising, then a determined low hit
+add(score, riser(F(2134) - F(2075), 90, 420), F(2075), 0.25)
+add(score, kick(1.4, 90, 32, 0.5), F(2134), 0.8)
+add(score, pad([A1, A2, E3], 3.2, attack=0.02, release=1.5, bright=0.5), F(2134), 0.5)
+
+# 9. The run: drive builds, lead arpeggio from Run B
+pulse_section(F(2220), F(2490), vol=0.95)
+pulse_section(F(2490), F(2700), vol=1.1, hats16=True, lead=[A3, C4, E4, A4 / 2 * 2, E4, C4])
+
+# 10. The fix: drop to thinking, then riser into the boot
+for b in range(int((F(2980) - F(2700)) / BEAT)):
+    add(score, hat(0.05, 0.012), F(2700) + b * BEAT, 0.08)
+add(score, pad([A2, E3, C4], F(2980) - F(2700) + 0.5, attack=1.5, release=0.5, bright=0.1), F(2700), 0.3)
+add(score, riser(F(3050) - F(2980), 200, 1000), F(2980), 0.35)
+
+# 11. It boots: major bloom
+add(score, pad([A2, Cs3, E3, A3, Cs4, E4], 4.0, attack=0.02, release=2.5, bright=0.5), F(3052), 0.6)
+add(score, kick(1.5, 120, 35, 0.5), F(3052), 0.7)
+for i, n in enumerate([A4, Cs5, E5, A5]):
+    add(score, bell(n), F(3052) + i * 0.09, 0.14)
+
+# 12. Celebrate: bright pulse in A major
+major = [(A2, [A2, Cs4, E4]), (E2, [E3, Gs3, B2 * 2]), (Fs3 / 2, [Fs3, A3, Cs4]), (D2, [D3, Fs3, A3])]
+pulse_section(F(3150), F(3360), vol=0.9, chords=major, lead=[A3, Cs4, E4, Cs4])
+
+# 13. Next line + title: warm, calm, fade out
+add(score, pad([A2, E3, Cs4, E4], F(3960) - F(3355), attack=1.5, release=6, bright=0.25), F(3355), 0.45)
+for i in range(14):
+    n = [E4, Cs4, A3, B2 * 2, Cs4, E4, A4][i % 7]
+    add(score, pluck(n, 2.0), F(3380) + i * 1.9, 0.12)
+for i, n in enumerate([A4, E5, Cs5]):
+    add(score, bell(n, 3.5), F(3600) + 2.2 + i * 2.4, 0.1)
+
+score = reverb(score, 2.6, 0.7, 0.3)
+end = int(F(3955) * SR)
+score[end:] = 0
+fo = int(3 * SR)
+score[end - fo:end] *= np.linspace(1, 0, fo)
+save('boot_score.wav', score[: int(TOTAL * SR)], 0.85)
+
+# ---------------- sound effects ----------------
+
+
+def clicks(dur, mean_gap, seed):
+    r = np.random.default_rng(seed)
+    buf = np.zeros(int(dur * SR))
+    t = 0.05
+    while t < dur - 0.05:
+        n = int(0.012 * SR)
+        tt = np.arange(n) / SR
+        c = highpass(r.standard_normal(n), 2) * np.exp(-tt / 0.003)
+        c += 0.4 * np.sin(2 * np.pi * r.uniform(2200, 3400) * tt) * np.exp(-tt / 0.004)
+        if r.random() < 0.1:  # space bar thunk
+            c = c * 0.5 + np.sin(2 * np.pi * 180 * tt) * np.exp(-tt / 0.01)
+        add(buf, c, t, r.uniform(0.5, 1.0))
+        t += mean_gap * r.uniform(0.4, 1.8)
+    return buf
+
+
+save('typing_slow.wav', reverb(clicks(10, 0.13, 1), 0.4, 0.08, 0.15), 0.8)
+save('typing_fast.wav', reverb(clicks(10, 0.065, 2), 0.4, 0.08, 0.15), 0.8)
+
+t = secs(0.75)
+sq = np.sign(np.sin(2 * np.pi * 98 * t)) + np.sign(np.sin(2 * np.pi * 104 * t))
+gate = ((t * 8) % 1 < 0.75).astype(float)
+save('error_buzz.wav', smooth(sq, 4) * gate * fades(len(t), 0.005, 0.1), 0.6)
+
+t = secs(2.5)
+boom = kick(2.5, 160, 28, 0.55)
+crack = smooth(rng.standard_normal(len(t)), 3) * np.exp(-t / 0.12)
+save('impact.wav', reverb(np.tanh(2.5 * (boom + 0.6 * crack)), 2.0, 0.5, 0.3))
+
+t = secs(2.0)
+u = t / 2.0
+swell = smooth(rng.standard_normal(len(t)), 8) * u ** 3
+growl = np.sin(2 * np.pi * 46 * t + 2 * np.sin(2 * np.pi * 3 * t)) * (0.5 + 0.5 * np.sin(2 * np.pi * 8 * t)) * u ** 2
+save('shadow_swell.wav', np.tanh(1.5 * (swell + growl)) * fades(len(t), 0.05, 0.08), 0.8)
+
+g = np.zeros(int(0.45 * SR))
+for i in range(0, len(g), int(0.025 * SR)):
+    seg = min(int(0.025 * SR), len(g) - i)
+    tt = np.arange(seg) / SR
+    g[i:i + seg] = np.sign(np.sin(2 * np.pi * rng.uniform(200, 2000) * tt)) * (rng.random() > 0.3)
+save('glitch.wav', np.round(g * 4) / 4 * fades(len(g), 0.002, 0.05), 0.5)
+
+t = secs(0.12)
+save('beep.wav', np.sin(2 * np.pi * 1760 * t) * fades(len(t), 0.005, 0.05), 0.5)
+
+t = secs(0.14)
+f = 520 + 700 * (t / 0.14)
+save('pop.wav', np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t / 0.05) * fades(len(t), 0.002, 0.02), 0.7)
+
+t = secs(0.2)
+f = np.where(t < 0.07, 880, 1320)
+save('day.wav', np.sin(2 * np.pi * np.cumsum(f) / SR) * fades(len(t), 0.003, 0.08), 0.45)
+
+t = secs(0.9)
+u = t / 0.9
+n = rng.standard_normal(len(t))
+wh = smooth(n, 30) * (1 - u) + highpass(n, 3) * u * 0.5
+save('whoosh.wav', wh * np.sin(np.pi * u) ** 2, 0.6)
+
+t = secs(0.14)
+save('footstep.wav', (np.sin(2 * np.pi * 75 * t) * np.exp(-t / 0.035) + 0.15 * smooth(rng.standard_normal(len(t)), 10) * np.exp(-t / 0.02)), 0.7)
+
+buf = np.zeros(int(2.8 * SR))
+for i, nf in enumerate([A5, Cs5 * 2, E5 * 2, A5 * 2]):
+    add(buf, bell(nf, 2.5), i * 0.08, 1.0)
+save('success.wav', reverb(buf, 1.5, 0.4, 0.3), 0.7)
+
+t = secs(0.12)
+tick = highpass(rng.standard_normal(len(t)), 2) * np.exp(-t / 0.004) + 0.8 * np.sin(2 * np.pi * 140 * t) * np.exp(-t / 0.02)
+save('type_tick.wav', tick, 0.7)
+
+
+# ================================================================ ENIGMA
+# New effects for the Enigma film.
+t = secs(0.09)
+save('tick.wav', highpass(rng.standard_normal(len(t)), 2) * np.exp(-t / 0.006) + 0.5 * np.sin(2 * np.pi * 2400 * t) * np.exp(-t / 0.01), 0.6)
+
+morse = np.zeros(int(3.2 * SR))
+pos = 0.05
+for sym in '-.-. --.- -.. .--. .-. .. -. --. .- ...'.replace(' ', '/'):
+    if sym == '/':
+        pos += 0.18
+        continue
+    d = 0.06 if sym == '.' else 0.18
+    tt = secs(d)
+    add(morse, np.sin(2 * np.pi * 750 * tt) * fades(len(tt), 0.004, 0.004), pos, 1.0)
+    pos += d + 0.06
+save('morse.wav', morse, 0.45)
+
+t = secs(2.5)
+save('sonar.wav', reverb(np.sin(2 * np.pi * 1180 * t) * np.exp(-t / 0.35) * fades(len(t), 0.003, 0.2), 2.0, 0.6, 0.45), 0.5)
+
+# the Bombe: a dense mechanical clatter (many small clicks) over a motor hum, loops cleanly over 4 s
+b = np.zeros(int(4 * SR))
+tt = secs(0.012)
+click = highpass(rng.standard_normal(len(tt)), 2) * np.exp(-tt / 0.003)
+for k in range(int(4 / 0.045)):
+    add(b, click, k * 0.045 + rng.uniform(0, 0.01), rng.uniform(0.3, 1.0))
+tb = secs(4)
+b += 0.25 * np.sin(2 * np.pi * 55 * tb) * (1 + 0.3 * np.sin(2 * np.pi * 7 * tb))
+save('bombe.wav', b, 0.6)
+
+t = secs(1.6)
+save('chalk.wav', highpass(rng.standard_normal(len(t)), 3) * (0.5 + 0.5 * np.abs(np.sin(2 * np.pi * 3 * t))) * fades(len(t), 0.05, 0.2), 0.35)
+
+t = secs(0.4)
+save('stamp.wav', reverb(np.tanh(3 * (kick(0.4, 140, 50, 0.06) + 0.5 * smooth(rng.standard_normal(len(t)), 4) * np.exp(-t / 0.03))), 0.6, 0.15, 0.2), 0.8)
+
+clink = np.zeros(int(0.9 * SR))
+for k, f0 in enumerate([2900, 3600, 3300]):
+    tt = secs(0.5)
+    add(clink, np.sin(2 * np.pi * f0 * tt) * np.exp(-tt / 0.08), k * 0.11, 0.6)
+save('chain.wav', clink, 0.5)
+
+# Score for the Enigma film, timed to the narration (public/voice/enigma.json).
+import json  # noqa: E402
+
+vpath = os.path.join(os.path.dirname(__file__), '..', 'public', 'voice', 'enigma.json')
+if os.path.exists(vpath):
+    V = json.load(open(vpath))
+    VOICE_AT = 20 / 30
+    Ls = lambda n: V['lines'][n - 1]['start'] + VOICE_AT  # noqa: E731
+    Le = lambda n: V['lines'][n - 1]['end'] + VOICE_AT  # noqa: E731
+    title_at = round(V['duration'] * 30) / 30 + VOICE_AT + 20 / 30
+    total = title_at + 12
+    sc = np.zeros(int((total + 3) * SR))
+
+    def put(sig, t0, vol):
+        add(sc, sig, t0, vol)
+
+    # cold open: low A minor drone, a slow clock-like tick, sparse high plucks
+    put(pad([A1, E2, A2], Ls(10) + 0.2, attack=4, release=0.08, bright=0.25), 0, 0.55)
+    for k in range(int(Ls(10) / 1.0)):
+        put(hat(0.05, 0.01), 0.5 + k * 1.0, 0.06)
+    for i, n in enumerate([E5, C5, A4, E4, F2 * 8, E4]):
+        put(pluck(n, 2.2), 2 + i * 5.0, 0.1)
+    put(riser(Ls(10) - Ls(9), 70, 300), Ls(9), 0.18)
+    put(kick(2.0, 80, 28, 0.7), Ls(10) + 0.25, 0.8)  # "almost right": a low hit, then silence
+
+    # the Atlantic: slow heavy pulse in D minor
+    beat = 0.75
+    t0, t1 = Ls(11) - 0.3, Le(17) + 0.6
+    for k in range(int((t1 - t0) / beat)):
+        put(kick(0.6, 70, 34, 0.25), t0 + k * beat, 0.45)
+        if k % 4 == 0:
+            put(pad([D2 * 2, F3 / 2 * 2, A2], beat * 4 + 0.4, attack=0.5, release=0.5, bright=0.2), t0 + k * beat, 0.35)
+    put(pad([D4, D4 * 1.06], t1 - t0, attack=4, release=1, bright=0), t0, 0.05)
+
+    # Bletchley: curious, lighter plucked arpeggio
+    t0, t1 = Ls(18) - 0.3, Le(24) + 0.8
+    arp = [A3, C4, E4, A4, E4, C4]
+    k = 0
+    while t0 + k * 0.3 < t1:
+        put(pluck(arp[k % 6], 0.9), t0 + k * 0.3, 0.1)
+        k += 1
+    put(pad([A2, E3, C4], t1 - t0, attack=1.5, release=1, bright=0.2), t0, 0.3)
+
+    # the struggle: tense ostinato, then a low sad pad
+    t0, t1 = Ls(25) - 0.2, Ls(28)
+    beat = 0.5
+    for k in range(int((t1 - t0) / beat)):
+        put(kick(), t0 + k * beat, 0.4)
+        put(hat(), t0 + k * beat + beat / 2, 0.1)
+        put(bass(A2 / 2 if (k // 4) % 2 == 0 else F2, beat), t0 + k * beat, 0.3)
+    put(pad([A1, E2, C3], Le(28) - Ls(28) + 1.5, attack=1, release=1.2, bright=0.1), Ls(28), 0.5)
+
+    # the flaw: rising arpeggios, building into the Bombe stopping
+    t0, t1 = Ls(29) - 0.2, Ls(36)
+    seq = [A3, C4, E4, G3 * 2, A4, C5]
+    k = 0
+    while t0 + k * 0.25 < t1:
+        put(pluck(seq[k % 6] * (1 + 0.0 * k), 0.7), t0 + k * 0.25, 0.06 + 0.06 * (k * 0.25) / (t1 - t0))
+        k += 1
+    put(pad([A2, E3, C4, E4], t1 - t0, attack=3, release=0.3, bright=0.3), t0, 0.35)
+    hit = Ls(37) - 6 / 30
+    put(riser(hit - Ls(36), 120, 700), Ls(36), 0.3)
+
+    # the breakthrough: major bloom, then warm and reflective to the end
+    put(kick(1.8, 110, 32, 0.6), hit, 0.7)
+    put(pad([A2, Cs3, E3, A3, Cs4, E4], 6, attack=0.02, release=3, bright=0.45), hit, 0.6)
+    for i, n in enumerate([A4, Cs5, E5, A5]):
+        put(bell(n), hit + i * 0.1, 0.12)
+    t0 = hit + 4
+    put(pad([A2, E3, Cs4, E4], total - t0, attack=2, release=7, bright=0.25), t0, 0.42)
+    for i in range(int((total - t0) / 1.9)):
+        put(pluck([E4, Cs4, A3, B2 * 2, Cs4, E4, A4][i % 7], 2.0), t0 + i * 1.9, 0.1)
+    for i, n in enumerate([A4, E5, Cs5]):
+        put(bell(n, 3.5), title_at + 2.2 + i * 2.4, 0.1)
+
+    sc = reverb(sc, 2.6, 0.7, 0.3)
+    end = int((total - 0.2) * SR)
+    sc[end:] = 0
+    sc[end - 3 * SR:end] *= np.linspace(1, 0, 3 * SR)
+    save('enigma_score.wav', sc[: int(total * SR)], 0.85)

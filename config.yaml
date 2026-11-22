@@ -1,11 +1,24 @@
 # yt-auto channel config
 channel:
+  name: Hidden Flaw          # branding: tools/branding.py (avatar, banner, description, keywords)
   niche: >
-    Embedded systems and operating-system concepts made dead simple: interrupts,
-    watchdogs, GPIO, PWM, timers, DMA, bootloaders, RTOS tasks, scheduling,
-    context switches, stack vs heap, virtual memory, deadlocks, race conditions,
-    system calls, drivers. Audience: middle- and high-school students (13-18) and new developers; real terms, explained clearly, not watered down.
-  voice_tone: "clear, confident, slightly playful; like a smart friend explaining at a whiteboard"
+    True tech stories told as 2-3 minute animated dark documentaries: famous machines, bugs, hacks,
+    outages, engineering disasters and the people behind them, each built around the flaw, trick or
+    idea that decided its fate (Enigma, the Morris worm, Therac-25, Y2K, Apollo 11's alarms, Stuxnet).
+    Audience: curious teens and adults who like tech, history and how things really work.
+  voice_tone: "calm, low, dry documentary narrator; dramatic facts, understated delivery"
+
+# Which builder nightly/research use for new Idea rows: film (Remotion documentary, src/yt_auto/film.py)
+# or short (Hiro/Baymax dialogue Shorts, duo.py). A row's own Format column overrides this.
+default_format: film
+
+# Films: 2-3 min narrated documentaries made in film/ (Remotion; rules in film/CLAUDE.md)
+film:
+  dir: film
+  voice_python: film/tools/voice/.venv/bin/python   # Chatterbox Turbo env; CI falls back to tools/clone/.venv
+  director_model: opus       # Claude Code writes the scenes (src/films/<slug>/) and the script
+  director_timeout_min: 150
+  words: [290, 350]          # narration words: Enigma's 348 words = 2:29 of voice + 13 s title = 2:43 (keeps 'Under 3 Minutes')
 
 llm:
   backend: claude-cli        # headless Claude Code on your subscription; no API key
@@ -80,10 +93,12 @@ output_dir: out
 # Runtime orchestration (yt-auto nightly / publish / stats / research / analyze; see deploy/systemd)
 publish:
   timezone: America/Toronto
-  slots: ["08:00", "12:00", "15:30", "18:30", "21:00"]   # Toronto: before school, lunch, after school, evening, late; one Short per slot
+  slots: ["17:00"]           # Toronto: one film a day, early evening (Shorts used 08:00, 12:00, 15:30, 18:30, 21:00)
   min_lead_hours: 1           # never schedule closer than this to "now"
   auto_approve: true          # nightly ticks Approve itself unless QA fails; ntfy says it is done (user, 2026-11-21)
-  shorts_per_night: 5         # max under the 10,000 units/day API quota: ~1,650 per Short (upload 1,600 + schedule 50)
+  shorts_per_night: 5         # Shorts format: max under the 10,000 units/day API quota (~1,650 per Short)
+  videos_per_night: 1         # what nightly builds (default_format). Films: ~1 h each on a free runner; upload
+                              # 1,600 + captions 400 + thumbnail 50 + schedule 50 quota units
 
 # Live analytics + reaction (yt-auto stats; see src/yt_auto/analytics.py for all keys + defaults)
 analytics:

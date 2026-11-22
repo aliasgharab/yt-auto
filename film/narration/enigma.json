@@ -1,0 +1,52 @@
+{
+  "voice": {"ref": "tools/voice/refs/narrator.wav", "temperature": 0.6, "tempo": 0.95},
+  "lines": [
+    {"text": "In 1939, Germany had a machine that could hide anything.", "pause": 0.5},
+    {"text": "Orders. Ship positions. Attack plans.", "pause": 0.6},
+    {"text": "You pressed a key, and a different letter lit up.", "pause": 0.4},
+    {"text": "Press the same key again, and you got something else entirely.", "pause": 0.7},
+    {"text": "It was called Enigma.", "pause": 0.9},
+    {"text": "Every night at midnight, the settings changed.", "pause": 0.4},
+    {"text": "That meant one hundred and fifty-nine quintillion possible combinations.", "pause": 0.5},
+    {"text": "And whatever you'd worked out that day was now useless.", "pause": 1.0},
+    {"text": "The Germans were sure it could never be broken.", "pause": 1.1},
+    {"text": "They were almost right.", "pause": 1.4},
+
+    {"text": "By 1940, German submarines were hunting in the Atlantic.", "pause": 0.4},
+    {"text": "They hunted in groups. Wolf packs.", "pause": 0.6},
+    {"text": "Every week, supply ships went down by the dozen.", "pause": 0.6},
+    {"text": "Britain was an island. Without those ships, it would starve.", "pause": 0.8},
+    {"text": "Every order to every submarine went out by radio.", "pause": 0.4},
+    {"text": "Britain could hear every single message.", "pause": 0.5},
+    {"text": "It just couldn't read any of them.", "pause": 1.1},
+
+    {"text": "So Britain did something strange.", "pause": 0.5},
+    {"text": "It gathered mathematicians, chess players and puzzle fanatics at a country house called Bletchley Park.", "pause": 0.6},
+    {"text": "One of them was a quiet twenty-seven year old named Alan Turing.", "pause": 0.5},
+    {"text": "He chained his tea mug to a radiator, so nobody could steal it.", "pause": 0.8},
+    {"text": "And he had an idea that nobody liked.", "pause": 0.6},
+    {"text": "Stop trying to beat the machine by hand.", "pause": 0.4},
+    {"text": "Build a machine to beat it.", "pause": 1.1},
+
+    {"text": "But there was a problem.", "pause": 0.5},
+    {"text": "Even a machine couldn't check every setting before midnight.", "pause": 0.6},
+    {"text": "For months, it ran. And found nothing.", "pause": 0.7},
+    {"text": "Ships were still sinking. People wanted results.", "pause": 1.0},
+
+    {"text": "Then Turing found a tiny flaw inside Enigma itself.", "pause": 0.6},
+    {"text": "A letter could never turn into itself.", "pause": 0.5},
+    {"text": "An A was never an A. An E was never an E.", "pause": 0.7},
+    {"text": "And the German operators were predictable.", "pause": 0.4},
+    {"text": "Every morning, the same weather report. The same words.", "pause": 0.6},
+    {"text": "Guess one word, and almost every setting became impossible.", "pause": 0.5},
+    {"text": "Quintillions of options shrank to a few thousand.", "pause": 1.1},
+
+    {"text": "In the summer of 1940, the machine they called the Bomb stopped.", "pause": 0.6},
+    {"text": "It had found the key.", "pause": 1.0},
+    {"text": "From then on, Britain often read the orders before the submarines did.", "pause": 0.6},
+    {"text": "Some say it shortened the war by two years.", "pause": 1.0},
+    {"text": "The Germans never found out.", "pause": 1.2},
+    {"text": "Their perfect machine had one tiny flaw.", "pause": 0.7},
+    {"text": "And one stubborn man went looking for it.", "pause": 1.5}
+  ]
+}

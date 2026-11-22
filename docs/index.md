@@ -1,6 +1,6 @@
-# Kernel Kids Uploader
+# Hidden Flaw Uploader
 
-Kernel Kids makes short videos that explain embedded systems and operating systems. This tool uploads and schedules
+Hidden Flaw makes short animated documentaries about true tech stories. This tool uploads and schedules
 the channel's own videos and reads the channel's own analytics. Only the channel owner uses it.
 
 - [Privacy policy](privacy.html)

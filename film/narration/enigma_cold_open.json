@@ -1,0 +1,15 @@
+{
+  "voice": {"ref": "tools/voice/refs/narrator.wav", "temperature": 0.6, "tempo": 0.95},
+  "lines": [
+    {"text": "In 1939, Germany had a machine that could hide anything.", "pause": 0.5},
+    {"text": "Orders. Ship positions. Attack plans.", "pause": 0.6},
+    {"text": "You pressed a key, and a different letter lit up.", "pause": 0.4},
+    {"text": "Press the same key again, and you got something else entirely.", "pause": 0.7},
+    {"text": "It was called Enigma.", "pause": 0.9},
+    {"text": "Every night at midnight, the settings changed.", "pause": 0.4},
+    {"text": "That meant one hundred and fifty-nine quintillion possible combinations.", "pause": 0.5},
+    {"text": "And whatever you'd worked out that day was now useless.", "pause": 1.0},
+    {"text": "The Germans were sure it could never be broken.", "pause": 1.1},
+    {"text": "They were almost right.", "pause": 0.4}
+  ]
+}
