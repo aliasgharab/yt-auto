@@ -137,3 +137,51 @@ def test_baseline_compares_like_with_like():
     me = {"_id": "d", "Format": "short", "Source": "film-cut", "Publish At": "2026-11-25"}
     assert analytics._kind(me) == analytics._kind(cut) != analytics._kind(old_short)
     assert analytics._kind(film) != analytics._kind(me)
+
+
+# ---------------------------------------------------------------- thumbnail rotation test
+def test_thumbtest_rotation_and_winner():
+    from datetime import date as _d
+    from yt_auto import thumbtest as tt
+    assert [tt.variant_for(i) for i in range(7)] == ["a", "b", "c", "a", "b", "c", None]
+    pub = _dt(2026, 11, 23, 17, 0, tzinfo=_Z("America/Toronto"))          # 14:00 PT, day 0
+    assert tt.plan_day(pub, _dt(2026, 11, 24, 1, 0, tzinfo=tt.PT)) == 1
+    per_day = {"2026-11-23": 0.04, "2026-11-24": 0.06, "2026-11-25": 0.03,
+               "2026-11-26": 0.05, "2026-11-27": 0.07, "2026-11-28": 0.02}
+    s = tt.score(per_day, _d(2026, 11, 23))
+    assert round(s["a"], 3) == 0.045 and round(s["b"], 3) == 0.065 and round(s["c"], 3) == 0.025
+    assert tt.pick_winner(s) == "b"
+    assert tt.pick_winner({"a": 0.050, "b": 0.051}) == "a"     # needs a >5% lift to replace A
+    assert tt.pick_winner({}) == "a"
+
+
+def test_thumbtest_tick_rotates_and_records(monkeypatch, tmp_path):
+    import json as _j
+    from yt_auto import thumbtest as tt
+
+    class NC:
+        def __init__(self):
+            self.rows = [{"_id": "r1", "Title": "T", "Format": "film", "Video ID": "vid", "Status": "Live",
+                          "Publish At": "2026-11-23T17:00:00-05:00", "Job": "x"}]
+            self.updates = []
+
+        def query(self, st):
+            return self.rows
+
+        def update_row(self, rid, vals):
+            self.updates.append(vals)
+            self.rows[0].update(vals)
+
+    f = tmp_path / "thumbnail_b.jpg"
+    f.write_bytes(b"x")
+    set_calls = []
+    monkeypatch.setattr(tt, "thumb_file", lambda cfg, r, v, td: f)
+    monkeypatch.setattr(tt, "set_thumb", lambda yt, vid, p: set_calls.append(vid))
+    monkeypatch.setattr(tt, "reach_job", lambda rp: None)
+    monkeypatch.setattr(tt, "_reporting", lambda: None)
+    nc = NC()
+    out = tt.tick({"_root": tmp_path}, nc, None, now=_dt(2026, 11, 24, 9, 0, tzinfo=tt.PT))   # day 1 -> B
+    assert out["rotated"] == 1 and set_calls == ["vid"]
+    assert _j.loads(nc.rows[0]["Thumb Test"])["current"] == "b"
+    tt.tick({"_root": tmp_path}, nc, None, now=_dt(2026, 11, 24, 10, 0, tzinfo=tt.PT))           # same day: no-op
+    assert set_calls == ["vid"]

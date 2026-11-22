@@ -463,9 +463,7 @@ def produce(cfg: dict, nc, row: dict, guidance: str, feedback: list[str], build=
             if not auto:
                 msg += "\nTick Approve (or Reject + Feedback) in Notion."
             if fmt == "film" and (job / "thumbnail_b.jpg").exists():
-                rel = json.loads((job / "metadata.json").read_text()).get("release_url")
-                msg += ("\nThumbnail test: in Studio -> the video -> Thumbnail -> Test & compare, add B and C"
-                        + (f" from {rel}" if rel else f" ({job / 'thumbnail_b.jpg'})"))
+                msg += "\nThumbnails A/B/C rotate automatically for 6 days after it goes live; the winner is kept."
             if notion:
                 msg += f"\nNotion: {notion}"
             actions = [("Notion", notion)] if notion and (pv.get("studio") or pv.get("run")) else None
@@ -669,7 +667,13 @@ def stats(cfg: dict, nc, due_only: bool = False) -> dict:
     if yt is None:
         log.warning("stats: YouTube not configured, skipping")
         return {"ran": False}
-    return analytics.sweep(cfg, nc, yt, due_only=due_only)
+    out = analytics.sweep(cfg, nc, yt, due_only=due_only)
+    try:   # thumbnail A/B/C rotation (cheap: only touches YouTube when a variant is due)
+        from . import thumbtest
+        out["thumbs"] = thumbtest.tick(cfg, nc, yt)
+    except Exception as e:  # noqa: BLE001
+        log.warning("thumbnail test tick failed: %s", e)
+    return out
 
 
 def research(cfg: dict, nc, n: int = 10) -> int:

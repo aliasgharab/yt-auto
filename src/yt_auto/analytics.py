@@ -47,6 +47,7 @@ SCHEMA: dict[str, str] = {
     "Series": "rich_text",
     "YT Status": "rich_text",
     "Alerts": "rich_text",
+    "Thumb Test": "rich_text",   # thumbtest.py rotation state (JSON)
 }
 
 DEFAULTS = {

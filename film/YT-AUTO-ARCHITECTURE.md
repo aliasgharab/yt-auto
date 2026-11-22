@@ -213,8 +213,19 @@ On CI every film is persisted: its code is committed back and video/script/thumb
 goes back to the director once for a repair + re-render); a Claude script check for false or defamatory claims
 and policy problems. Any fail = not published.
 
-**Thumbnails:** 3 per film (circle / face / case-file stamp). A is set on upload; B and C are for Studio's
-Test & Compare (no API: add them by hand; the push notification links them).
+**Thumbnails:** 3 per film (circle / face / case-file stamp), tested hands-off by `thumbtest.py` (Studio's
+Test & Compare has no API): from the publish day the thumbnail rotates A,B,C,A,B,C one Pacific day each
+(thumbnails.set), and on day 9 each variant is scored by thumbnail CTR from the YouTube Reporting API reach
+report (if that API is enabled for the Cloud project) or else by views/day; the winner (A unless another beats
+it by > 5%) is set for good and a push reports the scores. State: Notion column "Thumb Test". Runs inside
+every `stats` pass (the 30-min publish cron).
+
+**Hands-off checklist (nothing needs the PC or a human):** GitHub Actions (public repo: free) runs everything,
+driven by heartbeat.yml; auto_approve on; Notion is state; film code/renders persist to the repo/releases
+(those commits also keep the repo "active", so GitHub never auto-disables the workflows); the OAuth app is
+In production (refresh tokens don't expire weekly); CLAUDE_CODE_OAUTH_TOKEN lasts a year (`claude setup-token`);
+Idea rows refill from weekly research and auto topics; transient failures requeue themselves; doctor.yml
+diagnoses failed runs; ntfy pushes are informational only.
 
 **Free helper model first** (`llm.helper.tasks`): research, analyze, editors, compilation plan (validated, else
 Claude). Script, director, repair, visual QA and the script check stay on Claude.
