@@ -128,14 +128,18 @@ def persist_film(cfg: dict, job: Path, sc: dict) -> str | None:
              f"film/narration/{slug}.json", f"film/public/voice/{slug}.json"]
     try:
         subprocess.run(["git", "add", "--", *[p for p in paths if (root / p).exists()]], cwd=root, check=True)
+        ident = ["-c", "user.name=yt-auto", "-c", "user.email=yt-auto@users.noreply.github.com"]
         if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=root).returncode != 0:
-            subprocess.run(["git", "-c", "user.name=yt-auto", "-c", "user.email=yt-auto@users.noreply.github.com",
-                            "commit", "-m", f"film: {sc['subject']} ({slug}) [skip ci]"], cwd=root, check=True)
+            subprocess.run(["git", *ident, "commit", "-m", f"film: {sc['subject']} ({slug}) [skip ci]"], cwd=root, check=True)
+            # the runner has other uncommitted files (rendered audio etc.): autostash them around the rebase;
+            # the rebase needs an identity too (2026-11-22: "empty ident name" lost the Mars Orbiter code)
             for _ in range(3):
-                if subprocess.run(["git", "pull", "--rebase", "-q"], cwd=root).returncode == 0 and \
-                        subprocess.run(["git", "push", "-q"], cwd=root).returncode == 0:
+                if subprocess.run(["git", *ident, "pull", "--rebase", "--autostash", "-q", "origin", "main"], cwd=root).returncode == 0 \
+                        and subprocess.run(["git", "push", "-q", "origin", "HEAD:main"], cwd=root).returncode == 0:
                     break
                 time.sleep(10)
+            else:
+                print("  persist: could not push the film code after 3 tries", flush=True)
     except Exception as e:  # noqa: BLE001 - never lose the video over a git hiccup
         print(f"  persist: git push failed: {e}", flush=True)
     tag = f"film-{slug}"
