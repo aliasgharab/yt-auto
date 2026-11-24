@@ -593,6 +593,28 @@ def build_day(cfg: dict, now: datetime | None = None) -> bool:
     return DAYS[now.weekday()] in days
 
 
+def built_today(cfg: dict, nc, now: datetime | None = None) -> bool:
+    """True if a row of the default format was already scripted/built on this Toronto day (a late
+    duplicate nightly must not build a second film)."""
+    tz = ZoneInfo(pcfg(cfg)["timezone"])
+    now = now or datetime.now(tz)
+    fmt = default_format(cfg)
+    try:
+        rows = nc.query(["Scripted", "Rendered", "Needs Approval", "Scheduled", "Live", "Failed"])
+    except Exception as e:  # noqa: BLE001 - fail open: building is better than silently skipping
+        log.warning("built_today check failed: %s", e)
+        return False
+    for r in rows:
+        c = r.get("_created")
+        if (r.get("Format") or "short") == fmt and r.get("Source") != "film-cut" and c:
+            try:
+                if datetime.fromisoformat(c.replace("Z", "+00:00")).astimezone(tz).date() == now.date():
+                    return True
+            except ValueError:
+                continue
+    return False
+
+
 def compilation_due(cfg: dict, nc, now: datetime | None = None) -> list[dict] | None:
     """Films for this month's compilation, or None. Due once per calendar month when at least
     compilation.films Live films have not been in a compilation yet."""
@@ -622,6 +644,10 @@ def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
     _ensure_schema(nc)
     if count is None and not build_day(cfg):
         log.info("nightly: not a build day (publish.build_days); publishing only")
+        publish(cfg, nc)
+        return []
+    if count is None and built_today(cfg, nc):
+        log.info("nightly: a video was already built today (Toronto); publishing only")
         publish(cfg, nc)
         return []
     count = count or _cadence(cfg, nc, per_night(cfg))

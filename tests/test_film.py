@@ -185,3 +185,22 @@ def test_thumbtest_tick_rotates_and_records(monkeypatch, tmp_path):
     assert _j.loads(nc.rows[0]["Thumb Test"])["current"] == "b"
     tt.tick({"_root": tmp_path}, nc, None, now=_dt(2026, 11, 24, 10, 0, tzinfo=tt.PT))           # same day: no-op
     assert set_calls == ["vid"]
+
+
+def test_built_today_blocks_a_second_build_same_toronto_day():
+    tz = _Z("America/Toronto")
+
+    class NC:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def query(self, st):
+            return self.rows
+
+    cfg = {"default_format": "film", "publish": {"timezone": "America/Toronto"}}
+    now = _dt(2026, 11, 23, 14, 0, tzinfo=tz)
+    film_today = {"Format": "film", "_created": "2026-11-23T07:45:00.000Z"}       # 02:45 Toronto, same day
+    film_yday = {"Format": "film", "_created": "2026-11-22T08:00:00.000Z"}
+    short_today = {"Format": "short", "Source": "film-cut", "_created": "2026-11-23T08:00:00.000Z"}
+    assert pipeline.built_today(cfg, NC([film_today]), now)
+    assert not pipeline.built_today(cfg, NC([film_yday, short_today]), now)

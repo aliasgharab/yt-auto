@@ -136,7 +136,7 @@ def to_props(values: dict) -> dict:
 
 def from_page(page: dict) -> dict:
     """Notion page object -> friendly dict."""
-    row = {"_id": page["id"], "_url": page.get("url", "")}
+    row = {"_id": page["id"], "_url": page.get("url", ""), "_created": page.get("created_time")}
     for name, p in page.get("properties", {}).items():
         t = p.get("type")
         v = p.get(t)

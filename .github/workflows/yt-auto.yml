@@ -55,15 +55,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          n=$(gh run list -R "$GITHUB_REPOSITORY" -w yt-auto.yml -L 100 \
-                --json databaseId,displayTitle,createdAt,status,conclusion \
-                --jq "[.[] | select(.databaseId < $GITHUB_RUN_ID and .displayTitle == \"nightly\"
-                        and (.createdAt | fromdateiso8601) > (now - 72000)
-                        and (.status != \"completed\" or .conclusion == \"success\"))] | length") || n=0
-          echo "earlier nightlies in the last 20 h: $n"
-          if [ "${n:-0}" -gt 0 ]; then
+          # Only an earlier nightly whose `run` job really ran (in progress or succeeded) on the SAME
+          # Toronto day counts. (Skipped duplicates used to count too: a late Sunday cron then blocked
+          # Monday's 02:30 build, and every skipped run blocked the next one: no film on 2026-11-23.)
+          today=$(TZ=America/Toronto date +%F)
+          ids=$(gh run list -R "$GITHUB_REPOSITORY" -w yt-auto.yml -L 100 --json databaseId,displayTitle,createdAt \
+                  --jq ".[] | select(.databaseId < $GITHUB_RUN_ID and .displayTitle == \"nightly\"
+                          and (.createdAt | fromdateiso8601) > (now - 108000)) | .databaseId") || ids=""
+          n=0
+          for id in $ids; do
+            job=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs" \
+                    --jq '.jobs[] | select(.name == "run") | "\(.status) \(.conclusion) \(.started_at)"' 2>/dev/null) || continue
+            read -r st concl started <<< "$job"
+            [ -z "$started" ] || [ "$started" = "null" ] && continue
+            day=$(TZ=America/Toronto date -d "$started" +%F)
+            if [ "$day" = "$today" ] && { [ "$st" != "completed" ] || [ "$concl" = "success" ]; }; then
+              echo "nightly run $id already ran today ($st $concl)"; n=$((n + 1))
+            fi
+          done
+          if [ "$n" -gt 0 ]; then
             echo "go=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping: a nightly already ran in the last 20 h (late duplicate cron)."
+            echo "::notice::Skipping: a nightly already ran today (Toronto) (late duplicate cron)."
           else
             echo "go=true" >> "$GITHUB_OUTPUT"
           fi
