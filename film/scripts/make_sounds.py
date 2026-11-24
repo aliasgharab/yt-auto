@@ -428,3 +428,169 @@ if os.path.exists(vpath):
     sc[end:] = 0
     sc[end - 3 * SR:end] *= np.linspace(1, 0, 3 * SR)
     save('enigma_score.wav', sc[: int(total * SR)], 0.85)
+
+
+# ================================================================ MOTH
+# New effects for the Moth film (Harvard Mark II, 1947). All synthesised here.
+def relay_click(seed=0, bright=1.0):
+    r = np.random.default_rng(seed)
+    tt = secs(0.06)
+    c = highpass(r.standard_normal(len(tt)), 2) * np.exp(-tt / 0.004)
+    c += 0.6 * bright * np.sin(2 * np.pi * r.uniform(3000, 4200) * tt) * np.exp(-tt / 0.006)
+    c += 0.5 * np.sin(2 * np.pi * 420 * tt) * np.exp(-tt / 0.012)
+    return c
+
+
+rel = np.zeros(int(0.35 * SR))
+add(rel, relay_click(1), 0.0, 1.0)
+add(rel, relay_click(2, 0.6), 0.012, 0.35)  # contact bounce
+save('relay.wav', reverb(rel, 0.4, 0.1, 0.2), 0.7)
+
+# the relay bank: hundreds of small clicks, 10 s, no hum
+bank = np.zeros(int(10 * SR))
+r = np.random.default_rng(11)
+tt0 = 0.0
+while tt0 < 9.9:
+    add(bank, relay_click(int(r.integers(0, 50)), r.uniform(0.3, 1.0)), tt0, r.uniform(0.15, 0.6))
+    tt0 += r.exponential(0.035)
+save('relay_bank.wav', reverb(bank, 0.6, 0.2, 0.25) * fades(len(bank), 0.3, 0.5), 0.55)
+
+# a relay buzzing against something stuck in it
+st = np.zeros(int(0.8 * SR))
+for k in range(9):
+    add(st, relay_click(20 + k, 0.4), k * 0.028, 0.6 * (1 - k / 10))
+t = secs(0.8)
+st += 0.25 * np.sign(np.sin(2 * np.pi * 60 * t)) * np.exp(-t / 0.25) * fades(len(t), 0.01, 0.2)
+save('relay_stuck.wav', smooth(st, 2), 0.55)
+
+# moth wings: soft noise flutter ~22 Hz
+t = secs(1.4)
+fl = smooth(rng.standard_normal(len(t)), 30) * (0.5 + 0.5 * np.sin(2 * np.pi * 22 * t)) ** 2
+save('flutter.wav', fl * fades(len(t), 0.25, 0.5), 0.35)
+
+# marker pen squeak on paper
+t = secs(0.45)
+f = 1500 + 400 * np.sin(2 * np.pi * 3 * t)
+sq = 0.3 * np.sin(2 * np.pi * np.cumsum(f) / SR) + highpass(rng.standard_normal(len(t)), 3) * 0.7
+save('marker.wav', sq * (0.6 + 0.4 * np.sin(2 * np.pi * 9 * t)) * fades(len(t), 0.03, 0.12), 0.3)
+
+# pen writing: scratchy, rhythmic
+t = secs(1.6)
+pen = highpass(rng.standard_normal(len(t)), 2) * (0.4 + 0.6 * np.abs(np.sin(2 * np.pi * 4.5 * t)) ** 3)
+save('pen.wav', pen * fades(len(t), 0.05, 0.3), 0.25)
+
+# page turn / slide
+t = secs(0.7)
+u = t / 0.7
+save('page.wav', smooth(rng.standard_normal(len(t)), 6) * np.sin(np.pi * u) ** 2 * (1 + 0.5 * np.sin(2 * np.pi * 30 * t)), 0.4)
+
+# tweezers: small metallic tick
+t = secs(0.3)
+save('tweezer.wav', reverb(np.sin(2 * np.pi * 5200 * t) * np.exp(-t / 0.02) + 0.5 * np.sin(2 * np.pi * 7400 * t) * np.exp(-t / 0.01), 0.4, 0.1, 0.2), 0.45)
+
+# tape: a short sticky rip
+t = secs(0.5)
+crack = np.zeros(len(t))
+for k in range(int(len(t) / (0.004 * SR))):
+    if rng.random() < 0.55:
+        i = int(k * 0.004 * SR)
+        crack[i:i + 60] += rng.uniform(0.3, 1.0) * np.exp(-np.arange(min(60, len(t) - i)) / 12)
+save('tape.wav', highpass(crack, 2) * fades(len(t), 0.02, 0.15), 0.5)
+
+# applause: thousands of soft claps
+save('applause.wav', reverb(clicks(4, 0.004, 9), 1.2, 0.3, 0.35) * fades(int(4 * SR), 0.6, 1.4), 0.5)
+
+# Score for the Moth film, timed to the narration (public/voice/moth.json).
+mpath = os.path.join(os.path.dirname(__file__), '..', 'public', 'voice', 'moth.json')
+
+
+def moth_score():
+    V = json.load(open(mpath))
+    VA = 20 / 30
+    Ls = lambda n: V['lines'][n - 1]['start'] + VA  # noqa: E731
+    Le = lambda n: V['lines'][n - 1]['end'] + VA  # noqa: E731
+    title_at = round(V['duration'] * 30) / 30 + VA + 20 / 30
+    total = title_at + 12
+    sc = np.zeros(int((total + 3) * SR))
+
+    def put(sig, t0, vol):
+        add(sc, sig, t0, vol)
+
+    D2_, F2_, G2_, A2_, Bb2 = 73.42, 87.31, 98.0, 110.0, 116.54
+    D3_, F3_, G3_, A3_, Bb3, C4_ = 146.83, 174.61, 196.0, 220.0, 233.08, 261.63
+    D4_, E4_, F4_, G4_, A4_, C5_, D5_, Fs4, Fs3 = 293.66, 329.63, 349.23, 392.0, 440.0, 523.25, 587.33, 369.99, 185.0
+
+    # cold open: low D minor drone, a slow relay-like tick, sparse high plucks
+    t1 = Ls(9) - 0.3
+    put(pad([D2_, A2_, D3_], t1, attack=3, release=1.5, bright=0.2), 0, 0.5)
+    for k in range(int(t1 / 1.0)):
+        put(hat(0.04, 0.008), 0.5 + k * 1.0, 0.05)
+    for i, n in enumerate([A4_, F4_, D4_, E4_, C5_, A4_]):
+        put(pluck(n, 2.2), 1.5 + i * 4.5, 0.09)
+    put(kick(2.0, 80, 28, 0.7), Le(8) + 0.3, 0.6)  # "tells it wrong": a low hit
+
+    # part I, the machine: a curious mechanical pulse (soft clicks + plucked arpeggio)
+    t0, t1 = Ls(9) - 0.2, Le(16) + 0.4
+    arp = [D3_, F3_, A3_, D4_, A3_, F3_, Bb2 * 2, D4_]
+    k = 0
+    while t0 + k * 0.3 < t1:
+        put(pluck(arp[k % 8], 0.9), t0 + k * 0.3, 0.08)
+        put(hat(0.03, 0.006), t0 + k * 0.3 + 0.15, 0.04)
+        k += 1
+    put(pad([D2_, A2_, F3_], t1 - t0, attack=2, release=1, bright=0.2), t0, 0.32)
+    put(pad([D2_, A2_, D3_], Le(17) - Le(16) + 0.8, attack=0.5, release=1, bright=0.1), Le(16), 0.45)
+
+    # part II, the hunt: tense pulse that builds, then stops dead on the moth
+    t0, hit = Ls(18) - 0.3, Ls(22) - 0.2
+    beat = 0.5
+    n = int((hit - t0) / beat)
+    for k in range(n):
+        g = 0.6 + 0.4 * k / max(1, n)
+        put(kick(0.5, 90, 38, 0.18), t0 + k * beat, 0.4 * g)
+        put(hat(), t0 + k * beat + beat / 2, 0.07 * g)
+        put(bass(D2_ if (k // 4) % 2 == 0 else Bb2 / 2, beat), t0 + k * beat, 0.28 * g)
+    put(riser(hit - Ls(21), 120, 600), Ls(21), 0.22)
+    put(kick(1.6, 70, 30, 0.6), hit, 0.6)
+    put(pad([D4_, D4_ * 1.5], Ls(24) - hit, attack=1.5, release=1.0, bright=0), hit + 0.4, 0.1)
+
+    # the moth comes out and goes into the log: soft bells over a warm pad
+    t0, t1 = Ls(24) - 0.2, Le(26) + 0.8
+    put(pad([D3_, F3_, A3_], t1 - t0, attack=1.5, release=1.0, bright=0.2), t0, 0.3)
+    for i, n in enumerate([A4_, F4_, D4_, A4_, C5_]):
+        put(bell(n, 3), t0 + 0.5 + i * 1.6, 0.07)
+
+    # part III, the twist: lighter, plucky, a little wry (F major)
+    t0, t1 = Ls(27) - 0.3, Le(31) + 0.6
+    pat = [F3_, A3_, C4_, A3_, G3_, Bb3, D4_, Bb3]
+    k = 0
+    while t0 + k * 0.25 < t1:
+        if k % 8 not in (3, 7):
+            put(pluck(pat[k % 8], 0.5), t0 + k * 0.25, 0.08)
+        k += 1
+    put(pad([F2_, C4_ / 2, A3_], t1 - t0, attack=1.5, release=1, bright=0.2), t0, 0.28)
+    for i in range(int((t1 - t0) / 1.0)):
+        put(kick(0.4, 80, 40, 0.1), t0 + i * 1.0, 0.25)
+
+    # part IV, the storyteller: warm D major
+    t0, t1 = Ls(32) - 0.3, Le(36) + 0.8
+    put(pad([D3_, Fs3, A3_, D4_], t1 - t0, attack=2, release=1.5, bright=0.25), t0, 0.35)
+    for i in range(int((t1 - t0) / 1.5)):
+        put(pluck([D4_, Fs4, A4_, Fs4, E4_, D4_][i % 6], 1.8), t0 + i * 1.5, 0.08)
+
+    # what happened next: reflective, to the end
+    t0 = Ls(37) - 0.3
+    put(pad([D2_, A2_, Fs3, A3_], total - t0, attack=2.5, release=6, bright=0.2), t0, 0.38)
+    for i in range(int((title_at - t0) / 2.0)):
+        put(pluck([A4_, Fs4, D4_, E4_, Fs4, D5_ / 2][i % 6], 2.0), t0 + i * 2.0, 0.08)
+    for i, n in enumerate([D4_ * 2, A4_, Fs4 * 2]):
+        put(bell(n, 3.5), title_at + 2.2 + i * 2.4, 0.09)
+
+    sc = reverb(sc, 2.6, 0.7, 0.3)
+    end = int((total - 0.2) * SR)
+    sc[end:] = 0
+    sc[end - 3 * SR:end] *= np.linspace(1, 0, 3 * SR)
+    save('moth_score.wav', sc[: int(total * SR)], 0.85)
+
+
+if os.path.exists(mpath):
+    moth_score()

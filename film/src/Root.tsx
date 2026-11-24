@@ -5,6 +5,7 @@ import {StyleTest, TEST_DURATION} from './films/style-test/StyleTest';
 import {Enigma, ENIGMA_DURATION} from './films/enigma/Enigma';
 import {Avatar, Banner, Thumbnail} from './films/brand/Brand';
 import {Compilation, compMetadata, ShortCut, shortMetadata} from './films/cuts/Cuts';
+import {FilmMoth, MOTH_DURATION} from './films/moth/Moth';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -23,6 +24,7 @@ export const RemotionRoot: React.FC = () => {
         <Composition id="Compilation" component={Compilation} calculateMetadata={compMetadata} durationInFrames={1} fps={30} width={1920} height={1080}
           defaultProps={{title: 'Tech stories', introVoice: null, introFrames: 150, introLines: [], segments: [{src: 'cuts/enigma.mp4', label: 'Enigma', frames: 4524}], card: {word: 'BROKEN.', line: 'Every system has a flaw.', accent: 'Go looking for it.'}}} />
       </Folder>
+      <Composition id="FilmMoth" component={FilmMoth} durationInFrames={MOTH_DURATION} fps={30} width={1920} height={1080} />
       {/* FILMS (yt-auto's film builder adds new <Composition> lines above this marker) */}
       <Folder name="Style-tests">
         <Composition id="Style-Pixel" component={StyleTest} durationInFrames={TEST_DURATION} fps={30} width={1920} height={1080} defaultProps={{look: 'pixel' as const}} />

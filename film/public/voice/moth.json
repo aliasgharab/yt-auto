@@ -1,0 +1,292 @@
+{
+ "duration": 146.0,
+ "lines": [
+  {
+   "text": "On a September afternoon in nineteen forty-seven, a computer was stopped by an insect.",
+   "start": 0.0,
+   "end": 5.06,
+   "startFrame": 0,
+   "endFrame": 152
+  },
+  {
+   "text": "Not a figure of speech. A moth.",
+   "start": 5.66,
+   "end": 8.122,
+   "startFrame": 170,
+   "endFrame": 244
+  },
+  {
+   "text": "Its body is still taped to a page in a logbook, in a museum in Washington.",
+   "start": 8.922,
+   "end": 13.564,
+   "startFrame": 268,
+   "endFrame": 407
+  },
+  {
+   "text": "Beside it, one line of handwriting.",
+   "start": 14.064,
+   "end": 16.237,
+   "startFrame": 422,
+   "endFrame": 487
+  },
+  {
+   "text": "First actual case of bug being found.",
+   "start": 16.737,
+   "end": 19.097,
+   "startFrame": 502,
+   "endFrame": 573
+  },
+  {
+   "text": "This is the story of the Harvard Mark Two.",
+   "start": 20.097,
+   "end": 22.949,
+   "startFrame": 603,
+   "endFrame": 688
+  },
+  {
+   "text": "And of a word every programmer uses, every single day.",
+   "start": 23.449,
+   "end": 27.027,
+   "startFrame": 703,
+   "endFrame": 811
+  },
+  {
+   "text": "And almost everyone tells it wrong.",
+   "start": 27.527,
+   "end": 29.428,
+   "startFrame": 826,
+   "endFrame": 883
+  },
+  {
+   "text": "Harvard University. Cambridge, Massachusetts.",
+   "start": 31.028,
+   "end": 33.782,
+   "startFrame": 931,
+   "endFrame": 1013
+  },
+  {
+   "text": "The Mark Two was built to crunch numbers for the United States Navy.",
+   "start": 34.282,
+   "end": 38.412,
+   "startFrame": 1028,
+   "endFrame": 1152
+  },
+  {
+   "text": "It filled a room.",
+   "start": 38.912,
+   "end": 40.171,
+   "startFrame": 1167,
+   "endFrame": 1205
+  },
+  {
+   "text": "No screen. No keyboard. No silicon.",
+   "start": 40.571,
+   "end": 43.643,
+   "startFrame": 1217,
+   "endFrame": 1309
+  },
+  {
+   "text": "Instead, thousands of relays.",
+   "start": 44.243,
+   "end": 46.375,
+   "startFrame": 1327,
+   "endFrame": 1391
+  },
+  {
+   "text": "Tiny metal switches, snapping open and shut with every calculation.",
+   "start": 46.775,
+   "end": 50.77,
+   "startFrame": 1403,
+   "endFrame": 1523
+  },
+  {
+   "text": "The operators worked in shifts, keeping a logbook of every run.",
+   "start": 51.37,
+   "end": 54.934,
+   "startFrame": 1541,
+   "endFrame": 1648
+  },
+  {
+   "text": "Every test. Every failure. Every fix.",
+   "start": 55.334,
+   "end": 58.565,
+   "startFrame": 1660,
+   "endFrame": 1757
+  },
+  {
+   "text": "But on the ninth of September, something went wrong.",
+   "start": 59.265,
+   "end": 62.119,
+   "startFrame": 1778,
+   "endFrame": 1864
+  },
+  {
+   "text": "The machine kept giving errors.",
+   "start": 63.719,
+   "end": 65.494,
+   "startFrame": 1912,
+   "endFrame": 1965
+  },
+  {
+   "text": "The team went looking, panel by panel, relay by relay.",
+   "start": 65.894,
+   "end": 69.344,
+   "startFrame": 1977,
+   "endFrame": 2080
+  },
+  {
+   "text": "At three forty-five in the afternoon, they found it.",
+   "start": 69.844,
+   "end": 72.758,
+   "startFrame": 2095,
+   "endFrame": 2183
+  },
+  {
+   "text": "Panel F. Relay number seventy.",
+   "start": 73.258,
+   "end": 75.505,
+   "startFrame": 2198,
+   "endFrame": 2265
+  },
+  {
+   "text": "A moth, crushed between the contacts.",
+   "start": 76.105,
+   "end": 78.583,
+   "startFrame": 2283,
+   "endFrame": 2357
+  },
+  {
+   "text": "It had stopped the switch from closing.",
+   "start": 79.583,
+   "end": 81.795,
+   "startFrame": 2387,
+   "endFrame": 2454
+  },
+  {
+   "text": "Someone pulled it out with tweezers, and taped it into the log.",
+   "start": 82.295,
+   "end": 86.104,
+   "startFrame": 2469,
+   "endFrame": 2583
+  },
+  {
+   "text": "Then wrote the line underneath.",
+   "start": 86.604,
+   "end": 88.201,
+   "startFrame": 2598,
+   "endFrame": 2646
+  },
+  {
+   "text": "But here is the twist.",
+   "start": 89.201,
+   "end": 90.772,
+   "startFrame": 2676,
+   "endFrame": 2723
+  },
+  {
+   "text": "Engineers were already calling faults bugs.",
+   "start": 92.372,
+   "end": 94.808,
+   "startFrame": 2771,
+   "endFrame": 2844
+  },
+  {
+   "text": "Thomas Edison used the word in letters back in the eighteen seventies.",
+   "start": 95.208,
+   "end": 99.019,
+   "startFrame": 2856,
+   "endFrame": 2971
+  },
+  {
+   "text": "So the operators were not naming anything.",
+   "start": 99.519,
+   "end": 101.978,
+   "startFrame": 2986,
+   "endFrame": 3059
+  },
+  {
+   "text": "They were making a pun.",
+   "start": 102.378,
+   "end": 103.874,
+   "startFrame": 3071,
+   "endFrame": 3116
+  },
+  {
+   "text": "For once, the bug was an actual bug.",
+   "start": 104.674,
+   "end": 107.249,
+   "startFrame": 3140,
+   "endFrame": 3217
+  },
+  {
+   "text": "The story spread through Grace Hopper, a Navy officer and programmer on the team.",
+   "start": 108.249,
+   "end": 112.698,
+   "startFrame": 3247,
+   "endFrame": 3381
+  },
+  {
+   "text": "She told it for decades, in talks around the world.",
+   "start": 113.198,
+   "end": 116.378,
+   "startFrame": 3396,
+   "endFrame": 3491
+  },
+  {
+   "text": "Many still believe she found the moth, or invented the word.",
+   "start": 116.878,
+   "end": 120.368,
+   "startFrame": 3506,
+   "endFrame": 3611
+  },
+  {
+   "text": "She did neither.",
+   "start": 120.968,
+   "end": 121.931,
+   "startFrame": 3629,
+   "endFrame": 3658
+  },
+  {
+   "text": "But she made sure nobody forgot it.",
+   "start": 122.431,
+   "end": 124.643,
+   "startFrame": 3673,
+   "endFrame": 3739
+  },
+  {
+   "text": "The logbook reached the Smithsonian in nineteen ninety-four.",
+   "start": 125.643,
+   "end": 128.822,
+   "startFrame": 3769,
+   "endFrame": 3865
+  },
+  {
+   "text": "The moth is still there, flat and brown, almost eighty years later.",
+   "start": 129.322,
+   "end": 133.198,
+   "startFrame": 3880,
+   "endFrame": 3996
+  },
+  {
+   "text": "Every crash, every glitch, every patch since then carries its name.",
+   "start": 134.198,
+   "end": 138.006,
+   "startFrame": 4026,
+   "endFrame": 4140
+  },
+  {
+   "text": "Machines don't fail in grand ways.",
+   "start": 138.606,
+   "end": 141.133,
+   "startFrame": 4158,
+   "endFrame": 4234
+  },
+  {
+   "text": "They fail in tiny places nobody thought to look.",
+   "start": 141.633,
+   "end": 144.5,
+   "startFrame": 4249,
+   "endFrame": 4335
+  }
+ ]
+}

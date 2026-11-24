@@ -1,0 +1,173 @@
+{
+  "voice": {
+    "ref": "tools/voice/refs/narrator.wav",
+    "temperature": 0.6,
+    "tempo": 0.95
+  },
+  "lines": [
+    {
+      "text": "On a September afternoon in nineteen forty-seven, a computer was stopped by an insect.",
+      "pause": 0.6
+    },
+    {
+      "text": "Not a figure of speech. A moth.",
+      "pause": 0.8
+    },
+    {
+      "text": "Its body is still taped to a page in a logbook, in a museum in Washington.",
+      "pause": 0.5
+    },
+    {
+      "text": "Beside it, one line of handwriting.",
+      "pause": 0.5
+    },
+    {
+      "text": "First actual case of bug being found.",
+      "pause": 1
+    },
+    {
+      "text": "This is the story of the Harvard Mark Two.",
+      "pause": 0.5
+    },
+    {
+      "text": "And of a word every programmer uses, every single day.",
+      "pause": 0.5
+    },
+    {
+      "text": "And almost everyone tells it wrong.",
+      "pause": 1.6
+    },
+    {
+      "text": "Harvard University. Cambridge, Massachusetts.",
+      "pause": 0.5
+    },
+    {
+      "text": "The Mark Two was built to crunch numbers for the United States Navy.",
+      "pause": 0.5
+    },
+    {
+      "text": "It filled a room.",
+      "pause": 0.4
+    },
+    {
+      "text": "No screen. No keyboard. No silicon.",
+      "pause": 0.6
+    },
+    {
+      "text": "Instead, thousands of relays.",
+      "pause": 0.4
+    },
+    {
+      "text": "Tiny metal switches, snapping open and shut with every calculation.",
+      "pause": 0.6
+    },
+    {
+      "text": "The operators worked in shifts, keeping a logbook of every run.",
+      "pause": 0.4
+    },
+    {
+      "text": "Every test. Every failure. Every fix.",
+      "pause": 0.7
+    },
+    {
+      "text": "But on the ninth of September, something went wrong.",
+      "pause": 1.6
+    },
+    {
+      "text": "The machine kept giving errors.",
+      "pause": 0.4
+    },
+    {
+      "text": "The team went looking, panel by panel, relay by relay.",
+      "pause": 0.5
+    },
+    {
+      "text": "At three forty-five in the afternoon, they found it.",
+      "pause": 0.5
+    },
+    {
+      "text": "Panel F. Relay number seventy.",
+      "pause": 0.6
+    },
+    {
+      "text": "A moth, crushed between the contacts.",
+      "pause": 1
+    },
+    {
+      "text": "It had stopped the switch from closing.",
+      "pause": 0.5
+    },
+    {
+      "text": "Someone pulled it out with tweezers, and taped it into the log.",
+      "pause": 0.5
+    },
+    {
+      "text": "Then wrote the line underneath.",
+      "pause": 1
+    },
+    {
+      "text": "But here is the twist.",
+      "pause": 1.6
+    },
+    {
+      "text": "Engineers were already calling faults bugs.",
+      "pause": 0.4
+    },
+    {
+      "text": "Thomas Edison used the word in letters back in the eighteen seventies.",
+      "pause": 0.5
+    },
+    {
+      "text": "So the operators were not naming anything.",
+      "pause": 0.4
+    },
+    {
+      "text": "They were making a pun.",
+      "pause": 0.8
+    },
+    {
+      "text": "For once, the bug was an actual bug.",
+      "pause": 1
+    },
+    {
+      "text": "The story spread through Grace Hopper, a Navy officer and programmer on the team.",
+      "pause": 0.5
+    },
+    {
+      "text": "She told it for decades, in talks around the world.",
+      "pause": 0.5
+    },
+    {
+      "text": "Many still believe she found the moth, or invented the word.",
+      "pause": 0.6
+    },
+    {
+      "text": "She did neither.",
+      "pause": 0.5
+    },
+    {
+      "text": "But she made sure nobody forgot it.",
+      "pause": 1
+    },
+    {
+      "text": "The logbook reached the Smithsonian in nineteen ninety-four.",
+      "pause": 0.5
+    },
+    {
+      "text": "The moth is still there, flat and brown, almost eighty years later.",
+      "pause": 1
+    },
+    {
+      "text": "Every crash, every glitch, every patch since then carries its name.",
+      "pause": 0.6
+    },
+    {
+      "text": "Machines don't fail in grand ways.",
+      "pause": 0.5
+    },
+    {
+      "text": "They fail in tiny places nobody thought to look.",
+      "pause": 1.5
+    }
+  ]
+}
