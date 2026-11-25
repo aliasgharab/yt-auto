@@ -594,3 +594,146 @@ def moth_score():
 
 if os.path.exists(mpath):
     moth_score()
+
+
+# ================================================================ TAUM SAUK
+# New effects for the Taum Sauk film (reservoir failure, 2005). All synthesised here.
+def lowpass(x, k):
+    return smooth(smooth(x, k), k)
+
+
+# pump hum: a low 60 Hz machine drone with a slow beat, 12 s, loopable fades
+t = secs(12)
+hum = (np.sin(2 * np.pi * 60 * t) + 0.5 * np.sin(2 * np.pi * 120 * t + 0.3) + 0.2 * np.sin(2 * np.pi * 180.6 * t)) * (0.8 + 0.2 * np.sin(2 * np.pi * 0.4 * t))
+hum += 0.15 * lowpass(rng.standard_normal(len(t)), 40)
+save('pump_hum.wav', hum * fades(len(t), 0.6, 0.8), 0.45)
+
+# rushing water: broadband noise, slowly swelling, low-passed, 10 s
+t = secs(10)
+rush = lowpass(rng.standard_normal(len(t)), 6) + 0.6 * lowpass(rng.standard_normal(len(t)), 30)
+rush *= 0.75 + 0.25 * smooth(rng.standard_normal(len(t)), 9000) * 8
+save('water_rush.wav', reverb(rush, 1.5, 0.4, 0.3) * fades(len(t), 0.8, 1.0), 0.6)
+
+# trickle: water spilling over an edge, bright bubbly noise, 6 s
+t = secs(6)
+tr = highpass(rng.standard_normal(len(t)), 3) * 0.3
+bub = np.zeros(len(t))
+r = np.random.default_rng(31)
+tb = 0.0
+while tb < 5.9:
+    n = int(0.03 * SR)
+    tt = np.arange(n) / SR
+    f0 = r.uniform(700, 1800)
+    add(bub, np.sin(2 * np.pi * np.cumsum(f0 * (1 + 2 * tt / 0.03)) / SR) * np.exp(-tt / 0.008), tb, r.uniform(0.2, 0.6))
+    tb += r.exponential(0.025)
+save('trickle.wav', reverb(tr + bub, 0.8, 0.2, 0.3) * fades(len(t), 0.4, 0.8), 0.4)
+
+# rumble: the wall giving way, deep sub-bass roll with crackle, 5 s
+t = secs(5)
+rum = lowpass(rng.standard_normal(len(t)), 120) * 30 * np.exp(-t / 1.8)
+rum += 0.5 * np.sin(2 * np.pi * np.cumsum(38 + 10 * np.exp(-t)) / SR) * np.exp(-t / 1.5)
+crk = clicks(5, 0.02, 41) * np.exp(-t / 1.2) * 0.4
+save('rumble.wav', np.tanh(1.8 * reverb(rum + crk, 2.0, 0.6, 0.3)) * fades(len(t), 0.02, 1.0), 0.8)
+
+# creak: metal bracket straining, a slow bowed squeal, 1.6 s
+t = secs(1.6)
+fq = 180 + 60 * np.sin(2 * np.pi * 0.7 * t) + 30 * smooth(rng.standard_normal(len(t)), 800) * 10
+cr = np.sign(np.sin(2 * np.pi * np.cumsum(fq) / SR)) * (0.5 + 0.5 * np.sin(2 * np.pi * 7 * t))
+save('creak.wav', reverb(lowpass(cr, 6), 0.8, 0.25, 0.25) * fades(len(t), 0.15, 0.4), 0.35)
+
+# night: soft crickets and air, 10 s
+t = secs(10)
+nt = 0.25 * lowpass(rng.standard_normal(len(t)), 60)
+for k, (f0, rate, ph) in enumerate([(4300, 2.6, 0.0), (4700, 3.1, 1.3), (3900, 2.2, 2.1)]):
+    chirp = (np.sin(2 * np.pi * rate * t + ph) > 0.6) * (0.5 + 0.5 * np.sin(2 * np.pi * 45 * t))
+    nt += 0.08 * np.sin(2 * np.pi * f0 * t) * smooth(chirp.astype(float), 200)
+save('night.wav', nt * fades(len(t), 1.0, 1.5), 0.3)
+
+# Score for the Taum Sauk film, timed to the narration (public/voice/taumsauk.json).
+tpath = os.path.join(os.path.dirname(__file__), '..', 'public', 'voice', 'taumsauk.json')
+
+
+def taumsauk_score():
+    V = json.load(open(tpath))
+    VA = 20 / 30
+    Ls = lambda n: V['lines'][n - 1]['start'] + VA  # noqa: E731
+    Le = lambda n: V['lines'][n - 1]['end'] + VA  # noqa: E731
+    title_at = round(V['duration'] * 30) / 30 + VA + 20 / 30
+    total = title_at + 12
+    sc = np.zeros(int((total + 3) * SR))
+
+    def put(sig, t0, vol):
+        add(sc, sig, t0, vol)
+
+    E1, B1, E2, G2_, A2_, B2_, C3_, D3_, E3_ = 41.2, 61.74, 82.41, 98.0, 110.0, 123.47, 130.81, 146.83, 164.81
+    Fs3, G3_, A3_, B3_, D4_, E4_, Fs4, G4_, A4_, B4_ = 185.0, 196.0, 220.0, 246.94, 293.66, 329.63, 369.99, 392.0, 440.0, 493.88
+
+    # cold open: low E minor drone, slow drips of piano-like plucks, a dark hit on "asleep"
+    t1 = Ls(8) - 0.3
+    put(pad([E2, B2_, E3_], t1, attack=3, release=1.5, bright=0.2), 0, 0.5)
+    for i, n in enumerate([B3_, G3_, E3_, Fs3, G3_, B3_, A3_]):
+        put(pluck(n * 2, 2.4), 1.0 + i * 3.6, 0.08)
+    put(kick(2.0, 80, 28, 0.7), Ls(3) - 0.1, 0.45)
+    put(kick(2.0, 80, 28, 0.7), Le(7) + 0.2, 0.55)
+
+    # part I, the battery: a steady mechanical pulse (pumps), curious and even
+    t0, t1 = Ls(8) - 0.2, Le(14) + 0.4
+    arp = [E3_, G3_, B3_, E4_, B3_, G3_, D4_, B3_]
+    k = 0
+    while t0 + k * 0.32 < t1:
+        put(pluck(arp[k % 8], 0.9), t0 + k * 0.32, 0.07)
+        put(hat(0.03, 0.006), t0 + k * 0.32 + 0.16, 0.035)
+        k += 1
+    put(pad([E2, B2_, G3_], t1 - t0, attack=2, release=1, bright=0.2), t0, 0.3)
+    put(pad([C3_, G3_, E4_], Ls(16) - Le(14), attack=0.3, release=1, bright=0.1), Le(14), 0.35)
+
+    # part II, the gauges: uneasy, a slow ticking pulse with a dissonant shimmer
+    t0, t1 = Ls(16) - 0.3, Le(23) + 0.5
+    for k in range(int((t1 - t0) / 0.75)):
+        put(kick(0.4, 70, 36, 0.12), t0 + k * 0.75, 0.25)
+    put(pad([E2, B2_, C3_ * 2], t1 - t0, attack=2, release=1.2, bright=0.25), t0, 0.32)
+    put(pad([B4_, 523.25], t1 - Ls(20), attack=3, release=1.5, bright=0), Ls(20), 0.06)
+    put(kick(1.6, 70, 30, 0.6), Le(23) + 0.2, 0.5)
+
+    # part III, the night: a heartbeat pulse that builds to the overtopping, then stops dead
+    t0, hit = Ls(25) - 0.3, Ls(29) + 52 / 30
+    beat = 0.6
+    n = int((hit - t0) / beat)
+    for k in range(n):
+        g = 0.5 + 0.5 * k / max(1, n)
+        put(kick(0.5, 90, 38, 0.18), t0 + k * beat, 0.4 * g)
+        put(bass(E2 if (k // 4) % 2 == 0 else C3_ / 2, beat), t0 + k * beat, 0.25 * g)
+        if k % 2:
+            put(hat(), t0 + k * beat, 0.05 * g)
+    put(pad([E2, B2_, E3_], hit - t0, attack=2, release=0.3, bright=0.3), t0, 0.3)
+    put(riser(hit - Ls(28), 120, 700), Ls(28), 0.2)
+    put(kick(2.4, 60, 24, 0.9), hit, 0.75)
+
+    # the flood: low, heavy, dark swells
+    t0, t1 = hit + 0.5, Ls(34) - 0.4
+    put(pad([E1 * 2, B1 * 2, E2], t1 - t0, attack=1.5, release=1.5, bright=0.4), t0, 0.45)
+    put(pad([E3_, Fs3, G3_], t1 - t0, attack=3, release=1.5, bright=0), t0 + 1, 0.08)
+
+    # all five survived: a soft turn into G major
+    t0, t1 = Ls(34) - 0.3, Le(35) + 1.0
+    put(pad([G2_, D3_, B3_, D4_], t1 - t0, attack=1.2, release=1.2, bright=0.25), t0, 0.38)
+    for i, nn in enumerate([B4_, G4_, D4_, G4_]):
+        put(bell(nn, 3), t0 + 0.6 + i * 1.4, 0.07)
+
+    # aftermath: reflective E minor to G, sparse, then title bells
+    t0 = Ls(36) - 0.3
+    put(pad([E2, B2_, G3_, B3_], total - t0, attack=2.5, release=6, bright=0.2), t0, 0.34)
+    for i in range(int((title_at - t0) / 2.0)):
+        put(pluck([B3_, G3_, E3_, Fs3, G3_, D4_][i % 6] * 2, 2.0), t0 + i * 2.0, 0.07)
+    for i, nn in enumerate([E4_ * 2, B4_, G4_ * 2]):
+        put(bell(nn, 3.5), title_at + 2.2 + i * 2.4, 0.09)
+
+    sc = reverb(sc, 2.6, 0.7, 0.3)
+    end = int((total - 0.2) * SR)
+    sc[end:] = 0
+    sc[end - 3 * SR:end] *= np.linspace(1, 0, 3 * SR)
+    save('taumsauk_score.wav', sc[: int(total * SR)], 0.85)
+
+
+if os.path.exists(tpath):
+    taumsauk_score()

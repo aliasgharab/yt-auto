@@ -1,0 +1,278 @@
+{
+ "duration": 144.283,
+ "lines": [
+  {
+   "text": "At five in the morning, a mountain in Missouri began to pour itself into a valley.",
+   "start": 0.0,
+   "end": 5.088,
+   "startFrame": 0,
+   "endFrame": 153
+  },
+  {
+   "text": "A billion gallons of water. In twelve minutes.",
+   "start": 5.688,
+   "end": 8.782,
+   "startFrame": 171,
+   "endFrame": 263
+  },
+  {
+   "text": "And at the bottom, a family was asleep.",
+   "start": 9.582,
+   "end": 12.128,
+   "startFrame": 287,
+   "endFrame": 364
+  },
+  {
+   "text": "This is the Tom Sauk reservoir.",
+   "start": 13.128,
+   "end": 15.295,
+   "startFrame": 394,
+   "endFrame": 459
+  },
+  {
+   "text": "A man-made lake on top of Proffit Mountain, built to store electricity.",
+   "start": 15.795,
+   "end": 19.838,
+   "startFrame": 474,
+   "endFrame": 595
+  },
+  {
+   "text": "It was watched, every night, by a few small water gauges.",
+   "start": 20.338,
+   "end": 24.328,
+   "startFrame": 610,
+   "endFrame": 730
+  },
+  {
+   "text": "And those gauges were wrong.",
+   "start": 24.928,
+   "end": 26.584,
+   "startFrame": 748,
+   "endFrame": 798
+  },
+  {
+   "text": "The idea was simple.",
+   "start": 28.184,
+   "end": 29.518,
+   "startFrame": 846,
+   "endFrame": 886
+  },
+  {
+   "text": "At night, when power was cheap, pumps pushed water up the mountain.",
+   "start": 29.918,
+   "end": 33.732,
+   "startFrame": 898,
+   "endFrame": 1012
+  },
+  {
+   "text": "By day, it rushed back down through turbines to make electricity.",
+   "start": 34.232,
+   "end": 37.732,
+   "startFrame": 1027,
+   "endFrame": 1132
+  },
+  {
+   "text": "A giant battery, made of water and rock.",
+   "start": 38.232,
+   "end": 40.771,
+   "startFrame": 1147,
+   "endFrame": 1223
+  },
+  {
+   "text": "The lake was ringed by a wall of piled rock, topped with concrete.",
+   "start": 41.471,
+   "end": 45.601,
+   "startFrame": 1244,
+   "endFrame": 1368
+  },
+  {
+   "text": "The plant relied on gauges hung inside pipes on the wall.",
+   "start": 46.101,
+   "end": 49.596,
+   "startFrame": 1383,
+   "endFrame": 1488
+  },
+  {
+   "text": "When the water reached the line, the pumps switched off.",
+   "start": 50.096,
+   "end": 53.267,
+   "startFrame": 1503,
+   "endFrame": 1598
+  },
+  {
+   "text": "But there was a problem.",
+   "start": 54.267,
+   "end": 55.848,
+   "startFrame": 1628,
+   "endFrame": 1675
+  },
+  {
+   "text": "The pipes had worked loose from their brackets.",
+   "start": 57.448,
+   "end": 59.979,
+   "startFrame": 1723,
+   "endFrame": 1799
+  },
+  {
+   "text": "The gauges inside had slipped.",
+   "start": 60.479,
+   "end": 62.138,
+   "startFrame": 1814,
+   "endFrame": 1864
+  },
+  {
+   "text": "So they read the water lower than it really was.",
+   "start": 62.638,
+   "end": 65.809,
+   "startFrame": 1879,
+   "endFrame": 1974
+  },
+  {
+   "text": "By about two feet.",
+   "start": 66.609,
+   "end": 67.872,
+   "startFrame": 1998,
+   "endFrame": 2036
+  },
+  {
+   "text": "There was a backup. Two emergency probes, ready to shut everything down.",
+   "start": 68.872,
+   "end": 73.179,
+   "startFrame": 2066,
+   "endFrame": 2195
+  },
+  {
+   "text": "But they had been set too high.",
+   "start": 73.679,
+   "end": 75.904,
+   "startFrame": 2210,
+   "endFrame": 2277
+  },
+  {
+   "text": "Above the lowest point of the wall.",
+   "start": 76.404,
+   "end": 78.909,
+   "startFrame": 2292,
+   "endFrame": 2367
+  },
+  {
+   "text": "Nobody noticed. Not yet.",
+   "start": 80.109,
+   "end": 82.046,
+   "startFrame": 2403,
+   "endFrame": 2461
+  },
+  {
+   "text": "December the fourteenth, two thousand and five.",
+   "start": 83.646,
+   "end": 86.451,
+   "startFrame": 2509,
+   "endFrame": 2594
+  },
+  {
+   "text": "The pumps ran through the night, as they always did.",
+   "start": 86.951,
+   "end": 90.132,
+   "startFrame": 2609,
+   "endFrame": 2704
+  },
+  {
+   "text": "The gauges said there was room to spare.",
+   "start": 90.632,
+   "end": 93.165,
+   "startFrame": 2719,
+   "endFrame": 2795
+  },
+  {
+   "text": "There wasn't.",
+   "start": 93.765,
+   "end": 94.398,
+   "startFrame": 2813,
+   "endFrame": 2832
+  },
+  {
+   "text": "Just after five, water began spilling over the low spots of the wall.",
+   "start": 95.498,
+   "end": 99.726,
+   "startFrame": 2865,
+   "endFrame": 2992
+  },
+  {
+   "text": "Minutes later, a section nearly seven hundred feet wide simply gave way.",
+   "start": 100.226,
+   "end": 104.463,
+   "startFrame": 3007,
+   "endFrame": 3134
+  },
+  {
+   "text": "The flood tore down the mountain, scraping it to bare stone.",
+   "start": 105.563,
+   "end": 109.308,
+   "startFrame": 3167,
+   "endFrame": 3279
+  },
+  {
+   "text": "It poured into Johnson's Shut-Ins State Park.",
+   "start": 109.808,
+   "end": 112.227,
+   "startFrame": 3294,
+   "endFrame": 3367
+  },
+  {
+   "text": "Straight through the home of the superintendent, Jerry Toops.",
+   "start": 112.727,
+   "end": 115.717,
+   "startFrame": 3382,
+   "endFrame": 3472
+  },
+  {
+   "text": "Jerry, his wife Lisa, and their three children were swept away inside it.",
+   "start": 116.317,
+   "end": 120.61,
+   "startFrame": 3490,
+   "endFrame": 3618
+  },
+  {
+   "text": "All five survived.",
+   "start": 121.81,
+   "end": 123.2,
+   "startFrame": 3654,
+   "endFrame": 3696
+  },
+  {
+   "text": "The children were pulled from the wreckage cold, but alive.",
+   "start": 123.7,
+   "end": 126.969,
+   "startFrame": 3711,
+   "endFrame": 3809
+  },
+  {
+   "text": "The rock had not failed first. The readings had.",
+   "start": 127.969,
+   "end": 130.853,
+   "startFrame": 3839,
+   "endFrame": 3926
+  },
+  {
+   "text": "The owner paid around a hundred and eighty million dollars, and rebuilt it in concrete.",
+   "start": 131.653,
+   "end": 136.423,
+   "startFrame": 3950,
+   "endFrame": 4093
+  },
+  {
+   "text": "The wall did exactly what it was told.",
+   "start": 137.523,
+   "end": 140.063,
+   "startFrame": 4126,
+   "endFrame": 4202
+  },
+  {
+   "text": "It was just told the wrong number.",
+   "start": 140.663,
+   "end": 142.783,
+   "startFrame": 4220,
+   "endFrame": 4283
+  }
+ ]
+}

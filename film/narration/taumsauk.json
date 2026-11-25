@@ -1,0 +1,165 @@
+{
+  "voice": {
+    "ref": "tools/voice/refs/narrator.wav",
+    "temperature": 0.6,
+    "tempo": 0.95
+  },
+  "lines": [
+    {
+      "text": "At five in the morning, a mountain in Missouri began to pour itself into a valley.",
+      "pause": 0.6
+    },
+    {
+      "text": "A billion gallons of water. In twelve minutes.",
+      "pause": 0.8
+    },
+    {
+      "text": "And at the bottom, a family was asleep.",
+      "pause": 1
+    },
+    {
+      "text": "This is the Tom Sauk reservoir.",
+      "pause": 0.5
+    },
+    {
+      "text": "A man-made lake on top of Proffit Mountain, built to store electricity.",
+      "pause": 0.5
+    },
+    {
+      "text": "It was watched, every night, by a few small water gauges.",
+      "pause": 0.6
+    },
+    {
+      "text": "And those gauges were wrong.",
+      "pause": 1.6
+    },
+    {
+      "text": "The idea was simple.",
+      "pause": 0.4
+    },
+    {
+      "text": "At night, when power was cheap, pumps pushed water up the mountain.",
+      "pause": 0.5
+    },
+    {
+      "text": "By day, it rushed back down through turbines to make electricity.",
+      "pause": 0.5
+    },
+    {
+      "text": "A giant battery, made of water and rock.",
+      "pause": 0.7
+    },
+    {
+      "text": "The lake was ringed by a wall of piled rock, topped with concrete.",
+      "pause": 0.5
+    },
+    {
+      "text": "The plant relied on gauges hung inside pipes on the wall.",
+      "pause": 0.5
+    },
+    {
+      "text": "When the water reached the line, the pumps switched off.",
+      "pause": 1
+    },
+    {
+      "text": "But there was a problem.",
+      "pause": 1.6
+    },
+    {
+      "text": "The pipes had worked loose from their brackets.",
+      "pause": 0.5
+    },
+    {
+      "text": "The gauges inside had slipped.",
+      "pause": 0.5
+    },
+    {
+      "text": "So they read the water lower than it really was.",
+      "pause": 0.8
+    },
+    {
+      "text": "By about two feet.",
+      "pause": 1
+    },
+    {
+      "text": "There was a backup. Two emergency probes, ready to shut everything down.",
+      "pause": 0.5
+    },
+    {
+      "text": "But they had been set too high.",
+      "pause": 0.5
+    },
+    {
+      "text": "Above the lowest point of the wall.",
+      "pause": 1.2
+    },
+    {
+      "text": "Nobody noticed. Not yet.",
+      "pause": 1.6
+    },
+    {
+      "text": "December the fourteenth, two thousand and five.",
+      "pause": 0.5
+    },
+    {
+      "text": "The pumps ran through the night, as they always did.",
+      "pause": 0.5
+    },
+    {
+      "text": "The gauges said there was room to spare.",
+      "pause": 0.6
+    },
+    {
+      "text": "There wasn't.",
+      "pause": 1.1
+    },
+    {
+      "text": "Just after five, water began spilling over the low spots of the wall.",
+      "pause": 0.5
+    },
+    {
+      "text": "Minutes later, a section nearly seven hundred feet wide simply gave way.",
+      "pause": 1.1
+    },
+    {
+      "text": "The flood tore down the mountain, scraping it to bare stone.",
+      "pause": 0.5
+    },
+    {
+      "text": "It poured into Johnson's Shut-Ins State Park.",
+      "pause": 0.5
+    },
+    {
+      "text": "Straight through the home of the superintendent, Jerry Toops.",
+      "pause": 0.6
+    },
+    {
+      "text": "Jerry, his wife Lisa, and their three children were swept away inside it.",
+      "pause": 1.2
+    },
+    {
+      "text": "All five survived.",
+      "pause": 0.5
+    },
+    {
+      "text": "The children were pulled from the wreckage cold, but alive.",
+      "pause": 1
+    },
+    {
+      "text": "The rock had not failed first. The readings had.",
+      "pause": 0.8
+    },
+    {
+      "text": "The owner paid around a hundred and eighty million dollars, and rebuilt it in concrete.",
+      "pause": 1.1
+    },
+    {
+      "text": "The wall did exactly what it was told.",
+      "pause": 0.6
+    },
+    {
+      "text": "It was just told the wrong number.",
+      "pause": 1.5
+    }
+  ]
+}
