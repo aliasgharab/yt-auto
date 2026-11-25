@@ -85,8 +85,28 @@ def keyword_plan(subject: str, phrases: list[str], fetch=suggest, pause: float =
         title_subject = best if best[:1].isupper() else best.title()
         if subject.lower().startswith("the ") and not title_subject.lower().startswith("the "):
             title_subject = "The " + title_subject
-    return {"primary": best, "subject": title_subject, "scores": scores,
-            "related": list(dict.fromkeys(r for r in related if 2 <= len(r.split()) <= 7))[:12]}
+    return {"primary": best, "subject": title_subject, "scores": scores, "related": clean_related(related, cands)}
+
+
+FOREIGN = {"deutsch", "espanol", "español", "sonda", "hindi", "urdu", "francais", "français", "portugues", "português",
+           "italiano", "caso", "türkçe", "russian", "arabic", "dublado", "legendado", "subtitulado", "doku", "dokumentation"}
+OFFTOPIC = {"launch", "toy", "model", "lego", "game", "song", "meme", "reaction", "trailer", "live", "stream"}
+
+
+def clean_related(related: list[str], cands: list[str], n: int = 12) -> list[str]:
+    """Autocomplete expansions worth tagging: English, on the same story (shares 2+ words with a
+    candidate phrase), punctuation stripped; drops other languages and merch/game/launch noise."""
+    keys = [set(_norm(re.sub(r"^the ", "", c, flags=re.I)).split()) for c in cands]
+    out = []
+    for r in related:
+        r = re.sub(r"\s+-\s+|[|()\[\]]", " ", r)
+        r = " ".join(r.split())
+        w = set(_norm(r).split())
+        if not r.isascii() or w & FOREIGN or w & OFFTOPIC or not 2 <= len(w) <= 7:
+            continue
+        if any(len(w & k) >= 2 for k in keys):
+            out.append(r)
+    return list(dict.fromkeys(out))[:n]
 
 
 def lead_with(summary: str, phrase: str) -> str:
@@ -120,7 +140,7 @@ def chapters(marks: list[tuple[float, str]], duration: float) -> list[tuple[str,
 def tags(primary: str, related: list[str], writer: list[str], budget: int = 480) -> list[str]:
     seen, out, used = set(), [], 0
     for t in [primary, *related[:8], *writer]:
-        t = " ".join(str(t).split()).strip(" ,#")
+        t = re.sub(r"^the ", "", " ".join(str(t).split()).strip(" ,#"), flags=re.I)
         k = t.lower()
         cost = len(t) + (2 if " " in t else 0) + 1
         if not t or k in seen or used + cost > budget:
@@ -160,6 +180,15 @@ def search_terms(video_id: str, days: int = 90, n: int = 15) -> list[tuple[str, 
     return [(r[0], float(r[1])) for r in resp.get("rows") or []]
 
 
-def add_to_playlist(yt, playlist_id: str, video_id: str) -> None:
-    yt.playlistItems().insert(part="snippet", body={"snippet": {
-        "playlistId": playlist_id, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
+def add_to_playlist(yt, playlist_id: str, video_id: str, tries: int = 4) -> None:
+    """A just-created playlist can 404 or 409 for a few seconds; retry with a short wait."""
+    from googleapiclient.errors import HttpError
+    for i in range(tries):
+        try:
+            yt.playlistItems().insert(part="snippet", body={"snippet": {
+                "playlistId": playlist_id, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
+            return
+        except HttpError as e:
+            if e.resp.status not in (404, 409, 500, 503) or i == tries - 1:
+                raise
+            time.sleep(5 * (i + 1))

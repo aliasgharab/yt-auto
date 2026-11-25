@@ -274,6 +274,11 @@ def test_seo_lead_chapters_tags():
     assert seo.chapters([(0, "a"), (50, "b")], 150) == []          # fewer than 3 -> none
     t = seo.tags("mars climate orbiter", ["mars climate orbiter crash", "Mars Climate Orbiter"], ["x"] * 3)
     assert t[:2] == ["mars climate orbiter", "mars climate orbiter crash"] and len(t) == 3
+    assert seo.tags("The Mars Climate Orbiter", [], [])[0] == "Mars Climate Orbiter"
+    rel = seo.clean_related(["mars climate orbiter crash - 1998", "mars climate orbiter deutsch", "sonda mars climate orbiter",
+                             "mars climate orbiter launch", "mars climate orbiter error", "mars bars recipe"],
+                            ["The Mars Climate Orbiter"])
+    assert rel == ["mars climate orbiter crash 1998", "mars climate orbiter error"]
 
 
 def test_film_description_has_chapters_between_summary_and_sources():
