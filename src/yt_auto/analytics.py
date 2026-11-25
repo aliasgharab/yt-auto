@@ -48,6 +48,7 @@ SCHEMA: dict[str, str] = {
     "YT Status": "rich_text",
     "Alerts": "rich_text",
     "Thumb Test": "rich_text",   # thumbtest.py rotation state (JSON)
+    "Search Terms": "rich_text",  # YouTube-search terms that brought viewers (seo.search_terms), "term (views); ..."
 }
 
 DEFAULTS = {

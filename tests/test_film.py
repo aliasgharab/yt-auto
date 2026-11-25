@@ -246,3 +246,37 @@ def test_nightly_retries_next_idea_after_a_failed_build(monkeypatch):
     cfg = {"default_format": "film", "publish": {"timezone": "America/Toronto", "videos_per_night": 1}}
     res = pipeline.nightly(cfg, NC())
     assert built == ["i1", "i2"] and [r["Status"] for r in res] == ["Failed", "Needs Approval"]
+
+
+# ---------------------------------------------------------------- SEO
+def test_seo_demand_and_subject_choice():
+    from yt_auto import seo
+    sugg = {"taum sauk dam failure": ["taum sauk dam failure", "taum sauk dam failure 2005"],
+            "taum sauk reservoir breach": [],
+            "taum sauk": ["taum sauk", "taum sauk dam failure", "taum sauk dam", "taum sauk reservoir"]}
+    plan = seo.keyword_plan("The Taum Sauk Reservoir Breach", ["taum sauk dam failure", "taum sauk"],
+                            fetch=lambda q: sugg.get(q.lower(), []), pause=0)
+    assert plan["primary"] in ("taum sauk dam failure", "taum sauk")
+    assert plan["subject"].startswith("The ") and plan["subject"] != "The Taum Sauk Reservoir Breach"
+    assert seo.demand("anything", []) == 0.0
+    drift = seo.keyword_plan("The Apollo 11 1202 Alarm", ["apollo guidance computer"],
+                             fetch=lambda q: ["apollo guidance computer", "apollo guidance computer explained"]
+                             if "guidance" in q else [], pause=0)
+    assert drift["subject"] == "The Apollo 11 1202 Alarm" and drift["primary"] == "apollo guidance computer"
+
+
+def test_seo_lead_chapters_tags():
+    from yt_auto import seo
+    assert seo.lead_with("In 1999 NASA lost the Mars Climate Orbiter.", "mars climate orbiter").startswith("In 1999")
+    assert seo.lead_with("NASA lost a probe.", "mars climate orbiter crash").startswith("Mars climate orbiter crash: ")
+    ch = seo.chapters([(0.7, "The Probe"), (40, "The Units"), (45, "too close"), (90, "Why It Crashed")], 150)
+    assert ch == [("0:00", "The Probe"), ("0:40", "The Units"), ("1:30", "Why It Crashed")]
+    assert seo.chapters([(0, "a"), (50, "b")], 150) == []          # fewer than 3 -> none
+    t = seo.tags("mars climate orbiter", ["mars climate orbiter crash", "Mars Climate Orbiter"], ["x"] * 3)
+    assert t[:2] == ["mars climate orbiter", "mars climate orbiter crash"] and len(t) == 3
+
+
+def test_film_description_has_chapters_between_summary_and_sources():
+    d = film.make_description("S.", [{"title": "W", "url": "https://w"}], ["A"], [("0:00", "Intro"), ("0:40", "B"), ("1:30", "C")])
+    parts = d.split("\n\n")
+    assert parts[1].startswith("0:00 Intro") and parts[2].startswith("Sources:")

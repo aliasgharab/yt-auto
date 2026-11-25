@@ -212,7 +212,7 @@ IDEAS_SCHEMA = {
 }
 
 
-def research_ideas(cfg: dict, existing_titles: list[str], n: int) -> list[dict]:
+def research_ideas(cfg: dict, existing_titles: list[str], n: int, searched: list[str] | None = None) -> list[dict]:
     """Free public signals (HN, Reddit, YouTube search) -> one claude call -> n question-style ideas."""
     film = cfg.get("default_format") == "film"
     signals, errors = gather_signals(film=True) if film else gather_signals()
@@ -221,7 +221,9 @@ def research_ideas(cfg: dict, existing_titles: list[str], n: int) -> list[dict]:
     duo = cfg["duo"]
     prompt = load_prompt(
         "research_film" if film else "research", A=duo["asker"], B=duo["explainer"], niche=" ".join(cfg["channel"]["niche"].split()),
-        signals=format_signals(signals) if signals else "(all sources failed today: rely on the niche)",
+        signals=(format_signals(signals) if signals else "(all sources failed today: rely on the niche)")
+        + ("\n\nYOUTUBE SEARCHES THAT ALREADY BRING VIEWERS TO THIS CHANNEL (term (views)); favour adjacent stories:\n"
+           + "\n".join(f"- {t}" for t in (searched or [])[:40]) if searched else ""),
         existing="\n".join(f"- {t}" for t in existing_titles[-150:]) or "(none yet)", n=n + 2)
     res = helper.call_json(prompt, IDEAS_SCHEMA, cfg, "research")
     ideas = (res if res and res.get("ideas") else _claude(prompt, cfg, IDEAS_SCHEMA)).get("ideas", [])
@@ -667,9 +669,9 @@ ANALYZE_SCHEMA = {"type": "object", "required": ["guidance_markdown"],
                   "properties": {"guidance_markdown": {"type": "string"}}}
 _ROW_KEYS = ["title", "topic", "duration_s", "views", "likes", "avg_view_pct", "avg_view_s", "publish_at",
              "views_1h", "views_24h", "views_72h", "views_7d", "engaged_views", "shares", "subs_gained", "comments",
-             "verdict", "ratio_72h", "hook_pattern", "hook_check", "series", "hook"]
+             "verdict", "ratio_72h", "hook_pattern", "hook_check", "series", "hook", "search_terms"]
 # Notion column -> analyst key
-_NOTION_KEYS = {"Title": "title", "Topic": "topic", "Duration (s)": "duration_s", "Views": "views", "Likes": "likes",
+_NOTION_KEYS = {"Search Terms": "search_terms", "Title": "title", "Topic": "topic", "Duration (s)": "duration_s", "Views": "views", "Likes": "likes",
                 "Avg View %": "avg_view_pct", "Avg View (s)": "avg_view_s", "Publish At": "publish_at",
                 "Views 1h": "views_1h", "Views 24h": "views_24h", "Views 72h": "views_72h", "Views 7d": "views_7d",
                 "Engaged Views": "engaged_views", "Shares": "shares", "Subs Gained": "subs_gained",

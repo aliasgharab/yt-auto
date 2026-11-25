@@ -251,6 +251,12 @@ def upload(job: Path, publish_at: datetime | None = None) -> str:
                 videoId=video_id, media_body=MediaFileUpload(str(thumb), mimetype="image/jpeg")).execute())
         except Exception as e:  # noqa: BLE001 - custom thumbnails need a verified (phone) channel
             print(f"  thumbnail not set: {e}", flush=True)
+    if meta.get("playlist"):   # themed playlist (seo.PLAYLISTS): ranks in search, lengthens sessions (~100 units)
+        try:
+            from . import seo
+            seo.add_to_playlist(yt, seo.ensure_playlist(yt, meta["playlist"]), video_id)
+        except Exception as e:  # noqa: BLE001
+            print(f"  playlist not set: {e}", flush=True)
     srt = job / "captions.srt"
     if srt.is_file() and meta.get("format") == "film":   # exact captions from the script (~400 quota units)
         try:

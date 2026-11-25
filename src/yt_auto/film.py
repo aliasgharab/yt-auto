@@ -61,8 +61,11 @@ def _hashtag(t: str) -> str:
     return "#" + re.sub(r"[^0-9A-Za-z]", "", t.lstrip("#"))
 
 
-def make_description(summary: str, sources: list[dict], hashtags: list[str]) -> str:
+def make_description(summary: str, sources: list[dict], hashtags: list[str],
+                     chapters: list[tuple[str, str]] | None = None) -> str:
     parts = [" ".join(summary.split())]
+    if chapters:
+        parts.append("\n".join(f"{t} {label}" for t, label in chapters))
     if sources:
         parts.append("Sources:\n" + "\n".join(f"• {s['title']}: {s['url']}" for s in sources))
     parts.append(DISCLOSURE)
@@ -98,7 +101,7 @@ def check_sources(sources: list[dict], timeout: float = 12, opener=None) -> list
 SCRIPT_SCHEMA = {
     "type": "object",
     "required": ["subject", "slug", "summary", "lines", "title_card", "thumbnail", "thumbnail_alts", "short_hook",
-                 "short_end_line", "sources", "hashtags", "tags"],
+                 "short_end_line", "search_phrases", "chapters", "playlist", "sources", "hashtags", "tags"],
     "properties": {
         "subject": {"type": "string", "description": "what the video explains, title case, 1-5 words, e.g. 'The Enigma Machine'"},
         "slug": {"type": "string", "pattern": "^[a-z][a-z0-9]{2,20}$", "description": "one lowercase word, e.g. 'enigma'"},
@@ -117,6 +120,13 @@ SCRIPT_SCHEMA = {
             "description": "two DIFFERENT thumbnail angles for A/B testing (a number, a name, a question...)"},
         "short_hook": {"type": "string", "description": "headline for the vertical teaser Short, 4-9 words, curiosity"},
         "short_end_line": {"type": "integer", "minimum": 3, "description": "1-based line the cold open's cliffhanger is on (within ~50 s)"},
+        "search_phrases": {"type": "array", "minItems": 3, "maxItems": 6, "items": {"type": "string"},
+                           "description": "3-6 ways people would TYPE this story into YouTube search"},
+        "chapters": {"type": "array", "minItems": 3, "maxItems": 6, "items": {
+            "type": "object", "required": ["line", "label"],
+            "properties": {"line": {"type": "integer", "minimum": 1}, "label": {"type": "string"}}},
+            "description": "chapter starts: line 1 first, then each act's first line; labels 1-5 words, keyword-rich"},
+        "playlist": {"enum": ["hacks", "space", "engineering", "crypto", "bugs", "history"]},
         "sources": {"type": "array", "minItems": 2, "maxItems": 5, "items": {
             "type": "object", "required": ["title", "url"],
             "properties": {"title": {"type": "string"}, "url": {"type": "string"}}}},
@@ -164,6 +174,33 @@ def write_script(cfg: dict, topic: str | None, past: list[str], guidance: str = 
 
 
 # ---------------------------------------------------------------- helpers
+
+def apply_seo(sc: dict) -> dict:
+    """Search-demand check of the subject (YouTube autocomplete); sets sc["seo"] and maybe a better subject."""
+    from . import seo
+    plan = seo.keyword_plan(sc["subject"], sc.get("search_phrases") or [])
+    if plan["subject"] != sc["subject"]:
+        print(f"  seo: subject {sc['subject']!r} -> {plan['subject']!r} (search demand {plan['scores']})", flush=True)
+        sc["subject"] = plan["subject"]
+    sc["seo"] = plan
+    sc["summary"] = seo.lead_with(sc["summary"], plan["primary"])
+    sc["title"] = make_title(sc["subject"], minutes_for(sum(len(ln["text"].split()) for ln in sc["lines"]) / 2.35 + 13))
+    return plan
+
+
+def seo_metadata(sc: dict, timings: dict | None, duration: float) -> tuple[str, list[str], str | None]:
+    """(description, tags, playlist title) at publish time: chapters from the real line timings."""
+    from . import seo
+    plan = sc.get("seo") or {"primary": sc["subject"], "related": []}
+    marks = []
+    if timings:
+        for c in sc.get("chapters") or []:
+            i = int(c.get("line", 0)) - 1
+            if 0 <= i < len(timings["lines"]):
+                marks.append(((timings["lines"][i]["startFrame"] + VOICE_AT) / FPS, c.get("label", "")))
+    desc = make_description(sc["summary"], sc["sources"], sc["hashtags"], seo.chapters(marks, duration - 13))
+    return desc, seo.tags(plan["primary"], plan.get("related", []), sc["tags"]), seo.PLAYLISTS.get(sc.get("playlist", ""))
+
 
 def precheck_script(cfg: dict, sc: dict) -> list[str]:
     """Fail-level problems the pre-publish script check would raise (wrong names, false claims, policy),
@@ -414,6 +451,7 @@ def build_film(cfg: dict, topic: str | None = None, job: Path | None = None, *, 
         if not kept:
             raise RuntimeError("film writer: none of the cited source URLs load; refusing to publish uncredited")
         sc["sources"] = kept
+        apply_seo(sc)
         sc["description"] = make_description(sc["summary"], kept, sc["hashtags"])
         _done(t0)
         job = job or out_root / f"{date.today():%Y%m%d}-{_slug(sc['slug'])}-film"
@@ -455,8 +493,10 @@ def build_film(cfg: dict, topic: str | None = None, job: Path | None = None, *, 
         dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                                     str(job / "video.mp4")], capture_output=True, text=True).stdout.strip())
         sc["title"] = make_title(sc["subject"], minutes_for(dur))
+        sc["description"], seo_tags, playlist = seo_metadata(sc, timings, dur)
         (job / "script.json").write_text(json.dumps(sc, indent=2, ensure_ascii=False))
-        meta = {"title": sc["title"], "description": sc["description"], "tags": sc["tags"], "format": "film",
+        meta = {"title": sc["title"], "description": sc["description"], "tags": seo_tags, "format": "film",
+                "playlist": playlist,
                 "duration_s": round(dur, 1), "loudness_lufs": lufs, "peak_dbfs": peak, "speech_coverage": round(cover, 3)}
         (job / "metadata.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
         return meta

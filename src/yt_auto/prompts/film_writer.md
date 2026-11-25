@@ -50,6 +50,14 @@ Also return:
   curiosity, no clickbait lies ("The machine Germany thought was unbreakable").
 - short_end_line: the 1-based number of the line your cold open's cliffhanger is on (the Short ends
   there with "full story on the channel"); it must finish within about 50 seconds of narration.
+- search_phrases: 3-6 ways real people would TYPE this story into YouTube search, short and lowercase-ish
+  ("mars climate orbiter crash", "nasa metric imperial mistake", "apollo 11 1202 alarm"). Each is checked
+  against YouTube autocomplete; the one with the most search demand leads the description and tags, and
+  can replace the subject in the title, so include the plainest common name of the event.
+- chapters: 3-6 chapter starts as {line, label}: line 1 first, then the first line of each act (every turn).
+  Labels 1-5 words, using words people search ("The 1202 Alarm", "Why It Crashed"). Chapters become
+  timestamps in the description (Google/YouTube "key moments").
+- playlist: the theme it belongs to: hacks, space, engineering, crypto, bugs or history.
 - sources: 2-5 real, stable, public pages you are certain exist (Wikipedia articles, museum,
   university or official pages). Exact URLs only: every link is checked and broken ones are dropped.
 - hashtags: 3-5 short hashtags without '#' (subject first, then the field: "Enigma", "AlanTuring",

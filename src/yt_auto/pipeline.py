@@ -715,7 +715,29 @@ def stats(cfg: dict, nc, due_only: bool = False) -> dict:
         out["thumbs"] = thumbtest.tick(cfg, nc, yt)
     except Exception as e:  # noqa: BLE001
         log.warning("thumbnail test tick failed: %s", e)
+    if not due_only:   # full sweeps (weekly + manual): which YouTube searches bring viewers
+        try:
+            out["search_terms"] = search_terms_sweep(nc)
+        except Exception as e:  # noqa: BLE001
+            log.warning("search terms sweep failed: %s", e)
     return out
+
+
+def search_terms_sweep(nc) -> int:
+    """Store each live long-form video's top YouTube-search terms in Notion ("Search Terms"); the analyst
+    and the researcher read them (metric-based SEO: double down on what people actually search)."""
+    from . import seo
+    from .analytics import age_hours
+    now = datetime.now(ZoneInfo("UTC"))
+    n = 0
+    for r in nc.query("Live"):
+        if not r.get("Video ID") or (age_hours(r, now) or 0) < 72:
+            continue
+        terms = seo.search_terms(r["Video ID"])
+        if terms:
+            nc.update_row(r["_id"], {"Search Terms": "; ".join(f"{t} ({int(v)})" for t, v in terms)[:1900]})
+            n += 1
+    return n
 
 
 def research(cfg: dict, nc, n: int = 10) -> int:
@@ -727,7 +749,8 @@ def research(cfg: dict, nc, n: int = 10) -> int:
     titles = [r.get("Title", "") for r in rows if r.get("Title")]
     seen = {_norm(t) for t in titles} | {_norm(r.get("Topic", "")) for r in rows if r.get("Topic")}
     made = 0
-    for idea in agents.research_ideas(cfg, titles, n):
+    searched = [t for r in rows for t in (r.get("Search Terms") or "").split("; ") if t]
+    for idea in (agents.research_ideas(cfg, titles, n, searched) if searched else agents.research_ideas(cfg, titles, n)):
         title = (idea.get("title") or "").strip()
         if not title or _norm(title) in seen:
             continue
@@ -739,7 +762,7 @@ def research(cfg: dict, nc, n: int = 10) -> int:
     return made
 
 
-ANALYZE_FIELDS = ["Title", "Topic", "Format", "Source", "QA", "Duration (s)", "Publish At", "Views", "Likes",
+ANALYZE_FIELDS = ["Title", "Topic", "Format", "Source", "QA", "Duration (s)", "Publish At", "Views", "Likes", "Search Terms",
                   "Avg View %", "Avg View (s)", "Stats Updated", "Views 1h", "Views 24h", "Views 72h", "Views 7d",
                   "Engaged Views", "Shares", "Subs Gained", "Comments", "Verdict", "Ratio 72h", "Hook",
                   "Hook Pattern", "Hook Check", "Series", "Script"]
