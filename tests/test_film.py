@@ -204,3 +204,45 @@ def test_built_today_blocks_a_second_build_same_toronto_day():
     short_today = {"Format": "short", "Source": "film-cut", "_created": "2026-11-23T08:00:00.000Z"}
     assert pipeline.built_today(cfg, NC([film_today]), now)
     assert not pipeline.built_today(cfg, NC([film_yday, short_today]), now)
+
+
+def test_speech_coverage_ignores_spelled_out_numbers():
+    script = "The alarm was twelve oh two. In nineteen sixty-nine, Armstrong kept going."
+    heard = set("the alarm was 1202 in 1969 armstrong kept going".split())
+    assert film.coverage_of(heard, script) == 1.0
+    assert film.coverage_of({"the"}, "the alarm") == 0.5
+
+
+def test_nightly_retries_next_idea_after_a_failed_build(monkeypatch):
+    import types
+    ideas = [{"_id": "i1", "Title": "A", "Status": "Idea"}, {"_id": "i2", "Title": "B", "Status": "Idea"}]
+
+    class NC:
+        def query(self, st):
+            return [r for r in ideas if r["Status"] == "Idea"] if st == "Idea" else []
+
+        def create_row(self, v):
+            return {"_id": "new", **v}
+
+        def update_row(self, *a):
+            pass
+
+    built = []
+
+    def fake_produce(cfg, nc, row, *a, **k):
+        built.append(row["_id"])
+        row["Status"] = "Failed" if row["_id"] == "i1" else "Needs Approval"
+        return dict(row)
+
+    monkeypatch.setattr(pipeline, "produce", fake_produce)
+    monkeypatch.setattr(pipeline, "publish", lambda *a, **k: None)
+    monkeypatch.setattr(pipeline, "_ensure_schema", lambda nc: None)
+    monkeypatch.setattr(pipeline, "build_day", lambda cfg: True)
+    monkeypatch.setattr(pipeline, "built_today", lambda cfg, nc: False)
+    monkeypatch.setattr(pipeline, "_cadence", lambda cfg, nc, n: 1)
+    monkeypatch.setattr(pipeline, "compilation_due", lambda cfg, nc: None)
+    for f in ("_guidance", "_feedback", "_recent_scripts"):
+        monkeypatch.setattr(pipeline, f, lambda nc, *a: [] if f != "_guidance" else "")
+    cfg = {"default_format": "film", "publish": {"timezone": "America/Toronto", "videos_per_night": 1}}
+    res = pipeline.nightly(cfg, NC())
+    assert built == ["i1", "i2"] and [r["Status"] for r in res] == ["Failed", "Needs Approval"]

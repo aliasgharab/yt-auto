@@ -165,6 +165,18 @@ def write_script(cfg: dict, topic: str | None, past: list[str], guidance: str = 
 
 # ---------------------------------------------------------------- helpers
 
+def precheck_script(cfg: dict, sc: dict) -> list[str]:
+    """Fail-level problems the pre-publish script check would raise (wrong names, false claims, policy),
+    run on the draft before voicing. Same prompt and model as QA's script check."""
+    from .agents import script_issues
+    try:
+        res = script_issues(cfg, sc["title"], sc.get("description", ""), sc["lines"])
+    except Exception as e:  # noqa: BLE001 - the final QA still checks the script
+        print(f"  script pre-check unavailable: {e}", flush=True)
+        return []
+    return [i.get("problem", "") for i in res.get("issues", []) if i.get("severity") == "fail"]
+
+
 def composition_id(slug: str) -> str:
     return "Film" + "".join(p.capitalize() for p in re.split(r"[^a-z0-9]+", slug) if p)
 
@@ -223,7 +235,20 @@ def speech_coverage(video: Path, lines: list[dict]) -> float:
     wav.unlink()
     segs, _ = WhisperModel("small.en", device="cpu", compute_type="int8").transcribe(audio)
     heard = set(re.findall(r"[a-z']+", " ".join(s.text for s in segs).lower()))
-    words = re.findall(r"[a-z']+", " ".join(ln["text"] for ln in lines).lower())
+    return coverage_of(heard, " ".join(ln["text"] for ln in lines))
+
+
+# Numbers are written as words for the voice ("twelve oh two"), but Whisper transcribes them as digits
+# ("1202"), so number words can't be matched and are left out of the score (2026-11-25: Apollo 11's
+# "1202 alarm" film failed at 89% because of this, not because the music was loud).
+NUMBER_WORDS = set("""zero oh one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen
+sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred thousand million
+billion trillion quadrillion quintillion first second third fourth fifth sixth seventh eighth ninth tenth percent
+point and a""".split())
+
+
+def coverage_of(heard: set[str], script: str) -> float:
+    words = [w for w in re.findall(r"[a-z']+", script.lower().replace("-", " ")) if w not in NUMBER_WORDS]
     return sum(w in heard for w in words) / max(1, len(words))
 
 
@@ -378,6 +403,13 @@ def build_film(cfg: dict, topic: str | None = None, job: Path | None = None, *, 
             fb.append(f"POLICY GUARD: {sc['subject']!r} is too close to {hit[1]!r}. Pick a different story and slug.")
         else:
             raise RuntimeError(f"film writer: 3 drafts all repeated earlier videos (last: {hit[1]!r})")
+        for fix in range(2):   # a real error in the script costs a whole night's render if found only at the end
+            issues = precheck_script(cfg, sc)
+            if not issues:
+                break
+            print(f"  script check found {len(issues)} problem(s), rewriting: {issues}", flush=True)
+            sc = write_script(cfg, sc["subject"], past, guidance, fb + [
+                f"SCRIPT CHECK (fix these, keep the same story and subject {sc['subject']!r}): " + " | ".join(issues)])
         kept = check_sources(sc["sources"])
         if not kept:
             raise RuntimeError("film writer: none of the cited source URLs load; refusing to publish uncredited")
@@ -418,8 +450,7 @@ def build_film(cfg: dict, topic: str | None = None, job: Path | None = None, *, 
         raw.unlink(missing_ok=True)
         cover = speech_coverage(job / "video.mp4", sc["lines"])
         print(f"  {lufs:.1f} LUFS, peak {peak:.1f} dBFS, Whisper heard {cover:.0%} of the script")
-        if cover < MIN_SPEECH:
-            raise RuntimeError(f"speech check: Whisper heard only {cover:.0%} of the narration (music too loud?)")
+        # no raise here: QA decides (fail < 90%), so the repair pass, the Short and persist_film still run
         _done(t0)
         dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
                                     str(job / "video.mp4")], capture_output=True, text=True).stdout.strip())
@@ -438,7 +469,8 @@ def build_film(cfg: dict, topic: str | None = None, job: Path | None = None, *, 
     t0 = _stage("QA (checks + visual review + script check)")
     qa = qa_review(cfg, job)
     for attempt in range(int(fcfg(cfg).get("repairs", 1))):
-        visual = [ln for ln in qa["notes"].splitlines() if ln.startswith("[fail]") and "frame_" in ln]
+        visual = [ln for ln in qa["notes"].splitlines()
+                  if ln.startswith("[fail]") and ("frame_" in ln or "blank frames" in ln)]
         if qa["verdict"] != "fail" or not visual:
             break
         stage_repair(cfg, sc, "\n".join(visual))

@@ -347,12 +347,25 @@ def ebur128(video: Path) -> tuple[float | None, float | None]:
     return (float(i[-1]) if i else None), (float(p[-1]) if p else None)
 
 
-def black_gaps(video: Path, duration: float, min_s: float = 2.0) -> list[tuple[float, float]]:
-    """Fully black stretches longer than min_s (a dropped shot), ignoring the last 3 s fade-out."""
-    out = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(video), "-vf", f"blackdetect=d={min_s}:pic_th=0.98:pix_th=0.04",
-                          "-an", "-f", "null", "-"], capture_output=True, text=True, timeout=900).stderr
-    gaps = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", out)]
-    return [(a, b) for a, b in gaps if a < duration - 3]
+def black_gaps(video: Path, duration: float, min_s: float = 2.0, fps: int = 4) -> list[tuple[float, float]]:
+    """Stretches longer than min_s where NOTHING in the frame is brighter than near-black (a dropped shot),
+    ignoring the last 3 s fade-out. A frame counts as blank by its brightest pixel, not by how much of it is
+    dark: chapter cards and headlines are white text on black and must pass (2026-11-25: blackdetect's
+    "98% dark" rule failed Taum Sauk's 'PART II / PART III' cards)."""
+    out = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(video), "-vf",
+                          f"fps={fps},signalstats,metadata=print:key=lavfi.signalstats.YMAX", "-an", "-f", "null", "-"],
+                         capture_output=True, text=True, timeout=900).stderr
+    ymax = [float(v) for v in re.findall(r"lavfi\.signalstats\.YMAX=([\d.]+)", out)]
+    gaps, start = [], None
+    for i, y in enumerate(ymax + [255.0]):
+        t = i / fps
+        if y < 40 and start is None:
+            start = t
+        elif y >= 40 and start is not None:
+            if t - start > min_s and start < duration - 3:
+                gaps.append((round(start, 2), round(t, 2)))
+            start = None
+    return gaps
 
 
 def palette_letterbox(video: Path, duration: float, n: int = 40, letterbox: bool = True) -> dict:
@@ -398,7 +411,7 @@ def media_checks(job: Path, fmt: str, style: str, dur: float, add, facts: dict) 
             add("ok" if cov >= 0.95 else "warn" if cov >= 0.90 else "fail", f"Whisper heard {cov:.0%} of the narration")
     gaps = black_gaps(video, dur)
     facts["black_gaps"] = gaps
-    add("fail" if gaps else "ok", f"black gaps > 2 s: {gaps}" if gaps else "no black gaps")
+    add("fail" if gaps else "ok", f"blank frames > 2 s at (start s, end s): {gaps}" if gaps else "no blank frames")
     pl = palette_letterbox(video, dur, letterbox=fmt == "film")
     facts.update(pl)
     add("ok" if pl["nonred_pct"] < 0.3 else "warn" if pl["nonred_pct"] < 1.5 else "fail",
@@ -424,12 +437,16 @@ SCRIPT_QA_SCHEMA = {
 }
 
 
+def script_issues(cfg: dict, title: str, description: str, lines: list[dict]) -> dict:
+    text = "\n".join(f"{i + 1}. {ln['text']}" for i, ln in enumerate(lines))
+    prompt = load_prompt("qa_script", title=title, description=description, script=text)
+    return _claude(prompt, cfg, SCRIPT_QA_SCHEMA, timeout=600)
+
+
 def script_check(cfg: dict, job: Path) -> dict:
     sc = json.loads((job / "script.json").read_text())
     meta = json.loads((job / "metadata.json").read_text()) if (job / "metadata.json").exists() else {}
-    text = "\n".join(f"{i + 1}. {ln['text']}" for i, ln in enumerate(sc.get("lines", [])))
-    prompt = load_prompt("qa_script", title=meta.get("title", ""), description=meta.get("description", ""), script=text)
-    return _claude(prompt, cfg, SCRIPT_QA_SCHEMA, timeout=600)
+    return script_issues(cfg, meta.get("title", ""), meta.get("description", ""), sc.get("lines", []))
 
 
 def _job_format(job: Path) -> str:

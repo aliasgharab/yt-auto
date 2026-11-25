@@ -664,7 +664,23 @@ def nightly(cfg: dict, nc, count: int | None = None, build=None) -> list[dict]:
     except Exception as e:
         log.warning("could not read past titles: %s", e)
         past = []
+    import time as _time
+    t_start = _time.time()
     results = [produce(cfg, nc, r, guidance, feedback, build, past, recent) for r in ideas]
+    # A failed build shouldn't cost the day: try the next Idea once while the run has time left
+    # (one film ~60-90 min; the job is capped at 330 min).
+    retries = int(pcfg(cfg).get("retry_on_fail", 1))
+    tried = {r["_id"] for r in ideas}
+    while retries > 0 and build is None and \
+            sum(1 for r in results if r.get("Status") not in ("Failed", "Idea")) < count and \
+            _time.time() - t_start < float(pcfg(cfg).get("retry_budget_min", 150)) * 60:
+        nxt = [r for r in nc.query("Idea") if r["_id"] not in tried]
+        if not nxt:
+            break
+        retries -= 1
+        tried.add(nxt[0]["_id"])
+        log.info("nightly: a build failed, trying the next idea: %s", nxt[0].get("Title"))
+        results.append(produce(cfg, nc, nxt[0], guidance, feedback, build, past, recent))
     if build is None:
         try:
             films = compilation_due(cfg, nc)
