@@ -7,6 +7,7 @@ import {Avatar, Banner, Thumbnail} from './films/brand/Brand';
 import {Compilation, compMetadata, ShortCut, shortMetadata} from './films/cuts/Cuts';
 import {FilmMoth, MOTH_DURATION} from './films/moth/Moth';
 import {FilmTaumsauk, TAUMSAUK_DURATION} from './films/taumsauk/Taumsauk';
+import {FilmApollo1202, APOLLO1202_DURATION} from './films/apollo1202/Apollo1202';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -27,6 +28,7 @@ export const RemotionRoot: React.FC = () => {
       </Folder>
       <Composition id="FilmMoth" component={FilmMoth} durationInFrames={MOTH_DURATION} fps={30} width={1920} height={1080} />
       <Composition id="FilmTaumsauk" component={FilmTaumsauk} durationInFrames={TAUMSAUK_DURATION} fps={30} width={1920} height={1080} />
+      <Composition id="FilmApollo1202" component={FilmApollo1202} durationInFrames={APOLLO1202_DURATION} fps={30} width={1920} height={1080} />
       {/* FILMS (yt-auto's film builder adds new <Composition> lines above this marker) */}
       <Folder name="Style-tests">
         <Composition id="Style-Pixel" component={StyleTest} durationInFrames={TEST_DURATION} fps={30} width={1920} height={1080} defaultProps={{look: 'pixel' as const}} />

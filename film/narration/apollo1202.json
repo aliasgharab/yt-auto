@@ -1,0 +1,153 @@
+{
+  "voice": {
+    "ref": "tools/voice/refs/narrator.wav",
+    "temperature": 0.6,
+    "tempo": 0.95
+  },
+  "lines": [
+    {
+      "text": "Six minutes from the surface of the Moon, the computer landing Apollo Eleven began to fail.",
+      "pause": 0.5
+    },
+    {
+      "text": "July twentieth, nineteen sixty-nine. Eagle is falling toward the Sea of Tranquility.",
+      "pause": 0.5
+    },
+    {
+      "text": "Two men inside. Neil Armstrong. Buzz Aldrin.",
+      "pause": 0.7
+    },
+    {
+      "text": "Then a yellow light, and a number on the display.",
+      "pause": 1
+    },
+    {
+      "text": "Twelve oh two.",
+      "pause": 1
+    },
+    {
+      "text": "Armstrong radios Houston. Program alarm. It's a twelve oh two.",
+      "pause": 0.5
+    },
+    {
+      "text": "Nobody in the cockpit knew what it meant.",
+      "pause": 0.5
+    },
+    {
+      "text": "Six hundred million people were watching on Earth.",
+      "pause": 0.5
+    },
+    {
+      "text": "And in Houston, a twenty-six-year-old had seconds to decide: land, or abort.",
+      "pause": 1.5
+    },
+    {
+      "text": "The Apollo Guidance Computer was built at the M I T Instrumentation Laboratory.",
+      "pause": 0.5
+    },
+    {
+      "text": "It had about four kilobytes of working memory.",
+      "pause": 0.4
+    },
+    {
+      "text": "Its programs were woven by hand into copper rope.",
+      "pause": 0.5
+    },
+    {
+      "text": "And it was flying a spacecraft.",
+      "pause": 1
+    },
+    {
+      "text": "Its software team was led by Margaret Hamilton.",
+      "pause": 0.5
+    },
+    {
+      "text": "They had built it to expect trouble.",
+      "pause": 1.5
+    },
+    {
+      "text": "But that night, the trouble came from somewhere nobody had tested.",
+      "pause": 0.5
+    },
+    {
+      "text": "A radar switch, set for a possible abort, was flooding the computer with meaningless signals.",
+      "pause": 0.5
+    },
+    {
+      "text": "Each one stole a sliver of its time.",
+      "pause": 0.4
+    },
+    {
+      "text": "About fifteen percent, gone.",
+      "pause": 0.7
+    },
+    {
+      "text": "The computer was running out of room to think.",
+      "pause": 1
+    },
+    {
+      "text": "It restarted, threw away its least important jobs, and kept the ones that flew the ship.",
+      "pause": 0.7
+    },
+    {
+      "text": "The alarm was not a crash.",
+      "pause": 0.5
+    },
+    {
+      "text": "It was the computer saying: I'm overloaded, but I'm coping.",
+      "pause": 1.5
+    },
+    {
+      "text": "In Houston, guidance officer Steve Bales turned to his backroom.",
+      "pause": 0.4
+    },
+    {
+      "text": "Jack Garman, twenty-four, knew every alarm code.",
+      "pause": 0.5
+    },
+    {
+      "text": "If it doesn't keep happening, we're fine.",
+      "pause": 0.5
+    },
+    {
+      "text": "Bales made the call. We're go on that alarm.",
+      "pause": 1
+    },
+    {
+      "text": "It came back. Twelve oh one. Twelve oh two. Five alarms in all.",
+      "pause": 0.7
+    },
+    {
+      "text": "Then Armstrong saw the computer steering them toward a field of boulders.",
+      "pause": 0.5
+    },
+    {
+      "text": "He took manual control and flew on.",
+      "pause": 0.5
+    },
+    {
+      "text": "Eagle touched down with less than a minute of fuel left.",
+      "pause": 1.2
+    },
+    {
+      "text": "The Eagle has landed.",
+      "pause": 1.2
+    },
+    {
+      "text": "Margaret Hamilton received the Presidential Medal of Freedom in twenty sixteen.",
+      "pause": 0.6
+    },
+    {
+      "text": "Its code is public now. People are still finding bugs in it.",
+      "pause": 0.8
+    },
+    {
+      "text": "The software that landed on the Moon wasn't perfect.",
+      "pause": 0.8
+    },
+    {
+      "text": "It was built to survive being wrong.",
+      "pause": 1.5
+    }
+  ]
+}

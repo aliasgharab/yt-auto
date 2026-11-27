@@ -1,0 +1,257 @@
+{
+ "duration": 145.456,
+ "lines": [
+  {
+   "text": "Six minutes from the surface of the Moon, the computer landing Apollo Eleven began to fail.",
+   "start": 0.0,
+   "end": 5.095,
+   "startFrame": 0,
+   "endFrame": 153
+  },
+  {
+   "text": "July twentieth, nineteen sixty-nine. Eagle is falling toward the Sea of Tranquility.",
+   "start": 5.595,
+   "end": 10.567,
+   "startFrame": 168,
+   "endFrame": 317
+  },
+  {
+   "text": "Two men inside. Neil Armstrong. Buzz Aldrin.",
+   "start": 11.067,
+   "end": 14.232,
+   "startFrame": 332,
+   "endFrame": 427
+  },
+  {
+   "text": "Then a yellow light, and a number on the display.",
+   "start": 14.932,
+   "end": 18.12,
+   "startFrame": 448,
+   "endFrame": 544
+  },
+  {
+   "text": "Twelve oh two.",
+   "start": 19.12,
+   "end": 20.464,
+   "startFrame": 574,
+   "endFrame": 614
+  },
+  {
+   "text": "Armstrong radios Houston. Program alarm. It's a twelve oh two.",
+   "start": 21.464,
+   "end": 25.859,
+   "startFrame": 644,
+   "endFrame": 776
+  },
+  {
+   "text": "Nobody in the cockpit knew what it meant.",
+   "start": 26.359,
+   "end": 28.87,
+   "startFrame": 791,
+   "endFrame": 866
+  },
+  {
+   "text": "Six hundred million people were watching on Earth.",
+   "start": 29.37,
+   "end": 32.032,
+   "startFrame": 881,
+   "endFrame": 961
+  },
+  {
+   "text": "And in Houston, a twenty-six-year-old had seconds to decide: land, or abort.",
+   "start": 32.532,
+   "end": 37.491,
+   "startFrame": 976,
+   "endFrame": 1125
+  },
+  {
+   "text": "The Apollo Guidance Computer was built at the M I T Instrumentation Laboratory.",
+   "start": 38.991,
+   "end": 44.09,
+   "startFrame": 1170,
+   "endFrame": 1323
+  },
+  {
+   "text": "It had about four kilobytes of working memory.",
+   "start": 44.59,
+   "end": 47.222,
+   "startFrame": 1338,
+   "endFrame": 1417
+  },
+  {
+   "text": "Its programs were woven by hand into copper rope.",
+   "start": 47.622,
+   "end": 50.483,
+   "startFrame": 1429,
+   "endFrame": 1514
+  },
+  {
+   "text": "And it was flying a spacecraft.",
+   "start": 50.983,
+   "end": 53.135,
+   "startFrame": 1529,
+   "endFrame": 1594
+  },
+  {
+   "text": "Its software team was led by Margaret Hamilton.",
+   "start": 54.135,
+   "end": 56.678,
+   "startFrame": 1624,
+   "endFrame": 1700
+  },
+  {
+   "text": "They had built it to expect trouble.",
+   "start": 57.178,
+   "end": 59.403,
+   "startFrame": 1715,
+   "endFrame": 1782
+  },
+  {
+   "text": "But that night, the trouble came from somewhere nobody had tested.",
+   "start": 60.903,
+   "end": 64.395,
+   "startFrame": 1827,
+   "endFrame": 1932
+  },
+  {
+   "text": "A radar switch, set for a possible abort, was flooding the computer with meaningless signals.",
+   "start": 64.895,
+   "end": 70.327,
+   "startFrame": 1947,
+   "endFrame": 2110
+  },
+  {
+   "text": "Each one stole a sliver of its time.",
+   "start": 70.827,
+   "end": 73.508,
+   "startFrame": 2125,
+   "endFrame": 2205
+  },
+  {
+   "text": "About fifteen percent, gone.",
+   "start": 73.908,
+   "end": 75.513,
+   "startFrame": 2217,
+   "endFrame": 2265
+  },
+  {
+   "text": "The computer was running out of room to think.",
+   "start": 76.213,
+   "end": 78.959,
+   "startFrame": 2286,
+   "endFrame": 2369
+  },
+  {
+   "text": "It restarted, threw away its least important jobs, and kept the ones that flew the ship.",
+   "start": 79.959,
+   "end": 85.046,
+   "startFrame": 2399,
+   "endFrame": 2551
+  },
+  {
+   "text": "The alarm was not a crash.",
+   "start": 85.746,
+   "end": 87.643,
+   "startFrame": 2572,
+   "endFrame": 2629
+  },
+  {
+   "text": "It was the computer saying: I'm overloaded, but I'm coping.",
+   "start": 88.143,
+   "end": 91.35,
+   "startFrame": 2644,
+   "endFrame": 2741
+  },
+  {
+   "text": "In Houston, guidance officer Steve Bales turned to his backroom.",
+   "start": 92.85,
+   "end": 96.892,
+   "startFrame": 2786,
+   "endFrame": 2907
+  },
+  {
+   "text": "Jack Garman, twenty-four, knew every alarm code.",
+   "start": 97.292,
+   "end": 100.55,
+   "startFrame": 2919,
+   "endFrame": 3017
+  },
+  {
+   "text": "If it doesn't keep happening, we're fine.",
+   "start": 101.05,
+   "end": 103.265,
+   "startFrame": 3032,
+   "endFrame": 3098
+  },
+  {
+   "text": "Bales made the call. We're go on that alarm.",
+   "start": 103.765,
+   "end": 106.843,
+   "startFrame": 3113,
+   "endFrame": 3205
+  },
+  {
+   "text": "It came back. Twelve oh one. Twelve oh two. Five alarms in all.",
+   "start": 107.843,
+   "end": 113.678,
+   "startFrame": 3235,
+   "endFrame": 3410
+  },
+  {
+   "text": "Then Armstrong saw the computer steering them toward a field of boulders.",
+   "start": 114.378,
+   "end": 118.191,
+   "startFrame": 3431,
+   "endFrame": 3546
+  },
+  {
+   "text": "He took manual control and flew on.",
+   "start": 118.691,
+   "end": 121.067,
+   "startFrame": 3561,
+   "endFrame": 3632
+  },
+  {
+   "text": "Eagle touched down with less than a minute of fuel left.",
+   "start": 121.567,
+   "end": 124.995,
+   "startFrame": 3647,
+   "endFrame": 3750
+  },
+  {
+   "text": "The Eagle has landed.",
+   "start": 126.195,
+   "end": 127.457,
+   "startFrame": 3786,
+   "endFrame": 3824
+  },
+  {
+   "text": "Margaret Hamilton received the Presidential Medal of Freedom in twenty sixteen.",
+   "start": 128.657,
+   "end": 132.767,
+   "startFrame": 3860,
+   "endFrame": 3983
+  },
+  {
+   "text": "Its code is public now. People are still finding bugs in it.",
+   "start": 133.367,
+   "end": 137.182,
+   "startFrame": 4001,
+   "endFrame": 4115
+  },
+  {
+   "text": "The software that landed on the Moon wasn't perfect.",
+   "start": 137.982,
+   "end": 140.937,
+   "startFrame": 4139,
+   "endFrame": 4228
+  },
+  {
+   "text": "It was built to survive being wrong.",
+   "start": 141.737,
+   "end": 143.956,
+   "startFrame": 4252,
+   "endFrame": 4319
+  }
+ ]
+}

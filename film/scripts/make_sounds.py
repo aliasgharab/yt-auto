@@ -737,3 +737,164 @@ def taumsauk_score():
 
 if os.path.exists(tpath):
     taumsauk_score()
+
+
+# ================================================================ APOLLO 1202
+# New effects for the Apollo 11 / 1202 alarm film. All synthesised here.
+
+# descent engine: a low, steady rocket roar (filtered noise + low tone), 10 s, loopable fades
+t = secs(10)
+eng = lowpass(rng.standard_normal(len(t)), 30) * 6 + 0.4 * lowpass(rng.standard_normal(len(t)), 8)
+eng += 0.25 * np.sin(2 * np.pi * 46 * t) * (0.8 + 0.2 * np.sin(2 * np.pi * 0.3 * t))
+save('descent_engine.wav', eng * fades(len(t), 0.8, 1.0), 0.5)
+
+# master alarm: a two-tone warble in the headset, 1.2 s
+t = secs(1.2)
+fq = np.where((t * 5) % 1 < 0.5, 750.0, 1000.0)
+al = np.sin(2 * np.pi * np.cumsum(fq) / SR)
+al = smooth(np.sign(al) * 0.4 + al * 0.6, 6)
+save('alarm_tone.wav', reverb(al * fades(len(t), 0.01, 0.15), 0.4, 0.1, 0.15), 0.45)
+
+# Quindar tones: the short beeps that keyed NASA's radio links (pure sines, 250 ms)
+for name, f0 in (('quindar_in', 2525.0), ('quindar_out', 2475.0)):
+    t = secs(0.25)
+    save(f'{name}.wav', np.sin(2 * np.pi * f0 * t) * fades(len(t), 0.004, 0.01), 0.4)
+
+# toggle switch: a hard metallic click with a short body
+t = secs(0.12)
+sw = highpass(rng.standard_normal(len(t)), 2) * np.exp(-t / 0.004) + 0.6 * np.sin(2 * np.pi * 1300 * t) * np.exp(-t / 0.015)
+sw += 0.5 * np.sin(2 * np.pi * 220 * t) * np.exp(-t / 0.02)
+save('switch_click.wav', sw, 0.6)
+
+# data stream: thousands of tiny pulses, buzzy and nervous, 6 s
+t = secs(6)
+ds = (np.sin(2 * np.pi * 640 * t) > 0.92).astype(float) * 0.6
+ds = highpass(ds, 3) * (0.6 + 0.4 * np.sin(2 * np.pi * 3.3 * t)) + 0.25 * clicks(6, 0.012, 77)
+save('data_stream.wav', ds * fades(len(t), 0.2, 0.4), 0.35)
+
+# control room: low air-conditioning hum, murmur and far-off beeps, 8 s
+t = secs(8)
+rt = 0.6 * lowpass(rng.standard_normal(len(t)), 80) + 0.15 * lowpass(rng.standard_normal(len(t)), 14) * (0.7 + 0.3 * np.sin(2 * np.pi * 0.7 * t))
+for k in range(5):
+    tb = 0.8 + k * 1.5
+    tt = secs(0.08)
+    add(rt, np.sin(2 * np.pi * 1200 * tt) * fades(len(tt), 0.004, 0.02), tb, 0.03)
+save('room_tone.wav', rt * fades(len(t), 0.8, 1.0), 0.3)
+
+# thruster: a short hiss puff (RCS jet)
+t = secs(0.35)
+save('thruster.wav', highpass(rng.standard_normal(len(t)), 3) * np.exp(-t / 0.08) * fades(len(t), 0.01, 0.05), 0.4)
+
+# Score for the Apollo 1202 film, timed to the narration (public/voice/apollo1202.json).
+apath = os.path.join(os.path.dirname(__file__), '..', 'public', 'voice', 'apollo1202.json')
+
+
+def apollo1202_score():
+    V = json.load(open(apath))
+    VA = 20 / 30
+    Ls = lambda n: V['lines'][n - 1]['start'] + VA  # noqa: E731
+    Le = lambda n: V['lines'][n - 1]['end'] + VA  # noqa: E731
+    title_at = round(V['duration'] * 30) / 30 + VA + 20 / 30
+    total = title_at + 12
+    sc = np.zeros(int((total + 3) * SR))
+
+    def put(sig, t0, vol):
+        add(sc, sig, t0, vol)
+
+    D1, A1_, D2_, F2_, G2_, A2_, Bb2, C3_, D3_ = 36.71, 55.0, 73.42, 87.31, 98.0, 110.0, 116.54, 130.81, 146.83
+    E3_, F3_, Fs3, G3_, A3_, Bb3, C4_, D4_, E4_, F4_, Fs4, A4_, D5_, Fs5, A5_ = (
+        164.81, 174.61, 185.0, 196.0, 220.0, 233.08, 261.63, 293.66, 329.63, 349.23, 369.99, 440.0, 587.33, 739.99, 880.0)
+
+    # cold open: wide, cold D minor drone; slow sparse plucks like distant telemetry
+    t1 = Ls(4)
+    put(pad([D2_, A2_, D3_], t1 + 0.5, attack=4, release=1.0, bright=0.2), 0, 0.5)
+    for i, n in enumerate([A4_, F4_, D4_, E4_, A4_]):
+        put(pluck(n, 2.4), 1.5 + i * 3.0, 0.07)
+
+    # the alarm: a dissonant shimmer and a slow heartbeat until the chapter card
+    t0, t1 = Ls(4) + 0.7, Le(9) + 0.3
+    put(pad([D2_, A2_, Bb2 * 2], t1 - t0, attack=1.0, release=0.4, bright=0.3), t0, 0.42)
+    put(pad([A4_, Bb3 * 2], t1 - t0, attack=3, release=0.5, bright=0), t0 + 1.5, 0.07)
+    k = 0
+    while t0 + k * 0.85 < t1:
+        put(kick(0.5, 80, 34, 0.15), t0 + k * 0.85, 0.3)
+        put(kick(0.4, 70, 34, 0.12), t0 + k * 0.85 + 0.22, 0.16)
+        k += 1
+    put(riser(t1 - Ls(9), 90, 400), Ls(9), 0.12)
+    put(kick(2.0, 80, 28, 0.7), Le(9) + 0.2, 0.6)
+
+    # part I, the computer: a curious, clockwork arpeggio (D minor to F major)
+    t0, t1 = Le(9) + 0.6, Le(15) + 0.3
+    arp = [D3_, F3_, A3_, D4_, A3_, F3_, C4_, A3_]
+    arp2 = [F3_, A3_, C4_, F4_, C4_, A3_, E4_, C4_]
+    k = 0
+    while t0 + k * 0.28 < t1:
+        seq = arp if (k // 32) % 2 == 0 else arp2
+        put(pluck(seq[k % 8], 0.8), t0 + k * 0.28, 0.07)
+        if k % 2:
+            put(hat(0.03, 0.006), t0 + k * 0.28, 0.03)
+        k += 1
+    put(pad([D2_, A2_, F3_], t1 - t0, attack=2, release=0.8, bright=0.2), t0, 0.3)
+    put(kick(1.6, 70, 30, 0.6), Le(15) + 0.2, 0.45)
+
+    # part II, the overload: a tense ostinato that thickens, gaps at the restart
+    t0, t1 = Le(15) + 0.6, Le(23) + 0.3
+    restart = Ls(21) + 0.5
+    beat = 0.42
+    n = int((t1 - t0) / beat)
+    for k in range(n):
+        tk = t0 + k * beat
+        if restart < tk < restart + 0.9:
+            continue
+        g = 0.55 + 0.45 * min(1, (tk - t0) / max(0.1, restart - t0)) if tk < restart else 0.7
+        put(bass(D2_ if (k // 8) % 2 == 0 else Bb2 / 2 * 2, beat), tk, 0.24 * g)
+        put(hat(), tk + beat / 2, 0.06 * g)
+        if Ls(18) < tk < restart:
+            put(hat(0.03, 0.008), tk + beat / 4, 0.04)
+            put(hat(0.03, 0.008), tk + 3 * beat / 4, 0.04)
+    put(pad([D2_, A2_, Bb2 * 2], restart - t0, attack=2, release=0.1, bright=0.35), t0, 0.33)
+    put(pad([Fs3 * 2, G3_ * 2], restart - Ls(19), attack=2, release=0.1, bright=0), Ls(19), 0.06)
+    put(riser(restart - Ls(20), 120, 900), Ls(20), 0.16)
+    put(pad([D2_, A2_, F3_, A3_], t1 - restart - 0.5, attack=1.0, release=1.0, bright=0.2), restart + 0.6, 0.32)
+    put(kick(1.6, 70, 30, 0.6), Le(23) + 0.2, 0.45)
+
+    # part III, the call: a heartbeat that builds through the alarms and boulders, cut dead at contact
+    t0, hit = Le(23) + 0.6, Le(31) + 0.1
+    beat = 0.7
+    n = int((hit - t0) / beat)
+    for k in range(n):
+        tk = t0 + k * beat
+        g = 0.4 + 0.6 * (tk - t0) / (hit - t0)
+        put(kick(0.5, 90, 38, 0.18), tk, 0.42 * g)
+        put(bass(D2_ if (k // 4) % 2 == 0 else Bb2, beat), tk, 0.22 * g)
+        if tk > Ls(28):
+            put(hat(), tk + beat / 2, 0.06 * g)
+    put(pad([D2_, A2_, D3_, F3_], hit - t0, attack=2, release=0.05, bright=0.3), t0, 0.3)
+    put(pad([A4_, Bb3 * 2], hit - Ls(29), attack=2, release=0.05, bright=0), Ls(29), 0.06)
+    put(riser(hit - Ls(30), 120, 800), Ls(30), 0.2)
+
+    # landed: a beat of silence, then a slow D major bloom
+    bloom = Ls(32) + 0.2
+    put(pad([D2_, A2_, Fs3, A3_, D4_], 7, attack=2.0, release=3, bright=0.35), bloom, 0.5)
+    for i, nn in enumerate([D5_, Fs5, A5_]):
+        put(bell(nn, 3.5), Le(32) + 0.3 + i * 0.25, 0.09)
+
+    # what happened next: warm and reflective, D major / B minor, to the title
+    t0 = Ls(33) - 0.2
+    put(pad([D2_, A2_, Fs3, D4_], Ls(35) - t0 + 1, attack=3, release=1.5, bright=0.2), t0, 0.32)
+    B1_ = 61.74  # B minor colour under the last lines
+    put(pad([B1_, Fs3, D4_, Fs4], total - Ls(35), attack=2, release=6, bright=0.2), Ls(35), 0.32)
+    for i in range(int((title_at - t0) / 1.9)):
+        put(pluck([Fs4, D4_, A3_, E4_, Fs4, A4_][i % 6], 2.0), t0 + i * 1.9, 0.07)
+    for i, nn in enumerate([D5_, A4_, Fs4 * 2]):
+        put(bell(nn, 3.5), title_at + 2.2 + i * 2.4, 0.09)
+
+    sc = reverb(sc, 2.6, 0.7, 0.3)
+    end = int((total - 0.2) * SR)
+    sc[end:] = 0
+    sc[end - 3 * SR:end] *= np.linspace(1, 0, 3 * SR)
+    save('apollo1202_score.wav', sc[: int(total * SR)], 0.85)
+
+
+if os.path.exists(apath):
+    apollo1202_score()
